@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Global Market Terminal (Offline Standalone)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #030708;
+      color: #e2e8f0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.4;
+      overflow-x: hidden;
+      padding-bottom: 40px;
+    }
+    header {
+      background: #090d10;
+      border-bottom: 1px solid #1e293b;
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      color: #10b981;
+      letter-spacing: 0.05em;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.1);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+      gap: 16px;
+      padding: 18px;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+    .card {
+      background: #070b0e;
+      border: 1px solid #1e293b;
+      border-radius: 6px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .card-header {
+      background: #0d1318;
+      border-bottom: 1px solid #1e293b;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+    .card-body {
+      padding: 14px;
+      flex: 1;
+    }
+    .green { color: #10b981; }
+    .red { color: #ef4444; }
+    .amber { color: #f59e0b; }
+    .muted { color: #64748b; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 6px 8px; border-bottom: 1px solid #1e293b; color: #64748b; font-size: 11px; }
+    td { padding: 8px; border-bottom: 1px solid #0f172a; }
+    .chart-container { width: 100%; height: 260px; position: relative; }
+    .heatmap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+    .heatmap-cell {
+      padding: 10px 8px;
+      border-radius: 4px;
+      text-align: center;
+      border: 1px solid rgba(255,255,255,0.05);
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+    .heatmap-cell:hover { transform: translateY(-2px); }
+    .clocks-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+    .clock-item {
+      background: #0b1015;
+      border: 1px solid #1e293b;
+      border-radius: 4px;
+      padding: 10px;
+    }
+    .clock-time { font-size: 16px; font-weight: 700; margin: 4px 0; color: #f8fafc; }
+    .btn {
+      background: #10b981;
+      color: #030708;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn:hover { background: #34d399; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <span>⚡ GLOBAL MARKET TERMINAL</span>
+      <span class="status-badge">OFFLINE VERIFIED</span>
+    </div>
+    <div style="display: flex; gap: 14px; align-items: center;">
+      <span id="live-utc" class="muted">UTC --:--:--</span>
+      <button class="btn" onclick="toggleSimSpeed()">SIM TICK: <span id="speed-label">1X</span></button>
+    </div>
+  </header>
+
+  <main class="grid">
+    <section class="card" style="grid-column: 1 / -1;">
+      <div class="card-header">
+        <span>WORLD SESSION CLOCKS (GLOBAL TIMEZONES)</span>
+        <span class="green">● LIVE CHRONOMETER</span>
+      </div>
+      <div class="card-body">
+        <div class="clocks-grid" id="clocks-container"></div>
+      </div>
+    </section>
+
+    <section class="card" style="grid-column: span 2;">
+      <div class="card-header">
+        <span>AAPL.US — 60-SESSION CANDLESTICK, RSI & VOLUME PROFILE</span>
+        <span id="aapl-latest" class="green">$231.40 (+1.25%)</span>
+      </div>
+      <div class="card-body">
+        <svg id="aapl-svg" viewBox="0 0 700 300" style="width: 100%; height: 300px; overflow: visible;"></svg>
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 11px; color: #64748b;">
+          <div>
+            <span>SMA20: <strong style="color: #f59e0b;">Amber</strong></span> &nbsp;|&nbsp;
+            <span>EMA9: <strong style="color: #818cf8;">Indigo</strong></span> &nbsp;|&nbsp;
+            <span>RSI(14): <strong style="color: #38bdf8;">Cyan</strong> (<span style="color:#f43f5e;">70 OB</span> / <span style="color:#10b981;">30 OS</span>)</span> &nbsp;|&nbsp;
+            <span>VAP Profile: <strong style="color: #f59e0b;">POC Golden Bar</strong></span>
+          </div>
+          <span>60 Trading Sessions</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <span>GLOBAL INDICES BENCHMARK</span>
+        <span>EQUITY BOARDS</span>
+      </div>
+      <div class="card-body" style="padding: 0;">
+        <table>
+          <thead>
+            <tr><th>INDEX</th><th>LAST</th><th>CHG %</th></tr>
+          </thead>
+          <tbody id="indices-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" style="grid-column: span 2;">
+      <div class="card-header">
+        <span>AI / ENERGY / FINANCIALS HEATMAP</span>
+        <span class="muted">MARKET PERFORMANCE</span>
+      </div>
+      <div class="card-body">
+        <div class="heatmap-grid" id="heatmap-container"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <span>PRECIOUS METALS & COMMODITIES</span>
+        <span>XAU/XAG RATIO: <strong class="green" id="gold-silver-ratio">84.5x</strong></span>
+      </div>
+      <div class="card-body" style="padding: 0;">
+        <table>
+          <thead>
+            <tr><th>ASSET</th><th>BID</th><th>ASK</th><th>24H CHG</th></tr>
+          </thead>
+          <tbody id="metals-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const AAPL_DATA = [{"date":"2026-06-29","sessionIndex":1,"open":224.21,"high":227.38,"low":221.81,"close":226.88,"volume":49914659,"ema9":226.88,"rsi":54.2},{"date":"2026-06-30","sessionIndex":2,"open":226.69,"high":228.83,"low":224.22,"close":226.62,"volume":74485269,"ema9":226.83,"rsi":54.2},{"date":"2026-07-01","sessionIndex":3,"open":226.62,"high":231.58,"low":224.23,"close":228.89,"volume":57550361,"ema9":227.24,"rsi":54.2},{"date":"2026-07-02","sessionIndex":4,"open":228.94,"high":231.87,"low":226.56,"close":230.1,"volume":67386070,"ema9":227.81,"rsi":54.2},{"date":"2026-07-03","sessionIndex":5,"open":230.39,"high":235.36,"low":228.02,"close":234.37,"volume":63993976,"ema9":229.12,"rsi":54.2},{"date":"2026-07-06","sessionIndex":6,"open":234.42,"high":236.92,"low":232.06,"close":234.49,"volume":61802104,"ema9":230.19,"rsi":54.2},{"date":"2026-07-07","sessionIndex":7,"open":234.27,"high":239.34,"low":231.93,"close":236.76,"volume":67480987,"ema9":231.5,"rsi":54.2},{"date":"2026-07-08","sessionIndex":8,"open":236.52,"high":242.69,"low":234.2,"close":241.35,"volume":54365971,"ema9":233.47,"rsi":54.2},{"date":"2026-07-09","sessionIndex":9,"open":241.22,"high":242.68,"low":238.15,"close":240.44,"volume":76228794,"ema9":234.86,"rsi":54.2},{"date":"2026-07-10","sessionIndex":10,"open":240.66,"high":247.25,"low":238.4,"close":244.64,"volume":47453486,"ema9":236.82,"rsi":54.2},{"date":"2026-07-13","sessionIndex":11,"open":244.94,"high":249.79,"low":242.71,"close":247.43,"volume":71280173,"ema9":238.94,"rsi":54.2},{"date":"2026-07-14","sessionIndex":12,"open":247.71,"high":250.36,"low":245.52,"close":249.49,"volume":55919941,"ema9":241.05,"rsi":54.2},{"date":"2026-07-15","sessionIndex":13,"open":249.32,"high":252.98,"low":247.16,"close":251.11,"volume":70193279,"ema9":243.06,"rsi":54.2},{"date":"2026-07-16","sessionIndex":14,"open":251.33,"high":255.54,"low":249.22,"close":252.84,"volume":63926672,"ema9":245.02,"rsi":54.2},{"date":"2026-07-17","sessionIndex":15,"open":253.04,"high":258.76,"low":250.97,"close":256.71,"volume":63522492,"ema9":247.36,"rsi":96.4},{"date":"2026-07-20","sessionIndex":16,"open":256.73,"high":257.36,"low":252.85,"close":254.87,"volume":72511382,"ema9":248.86,"rsi":91.9},{"date":"2026-07-21","sessionIndex":17,"open":254.5,"high":259.39,"low":252.53,"close":257.17,"volume":58492145,"ema9":250.52,"rsi":91.9},{"date":"2026-07-22","sessionIndex":18,"open":257.27,"high":261.64,"low":255.35,"close":258.97,"volume":75147259,"ema9":252.21,"rsi":92},{"date":"2026-07-23","sessionIndex":19,"open":258.99,"high":260.66,"low":254.89,"close":256.76,"volume":45561458,"ema9":253.12,"rsi":84.6},{"date":"2026-07-24","sessionIndex":20,"open":256.46,"high":259.29,"low":254.65,"close":258.18,"volume":75641444,"ma20":244.4,"upperBand":266.68,"lowerBand":222.13,"ema9":254.13,"rsi":85.2},{"date":"2026-07-27","sessionIndex":21,"open":258.1,"high":260.58,"low":255.42,"close":257.17,"volume":56326835,"ma20":245.92,"upperBand":267.32,"lowerBand":224.51,"ema9":254.74,"rsi":81.5},{"date":"2026-07-28","sessionIndex":22,"open":257.5,"high":260.03,"low":255.67,"close":257.35,"volume":74340255,"ma20":247.45,"upperBand":267.46,"lowerBand":227.44,"ema9":255.26,"rsi":78.6},{"date":"2026-07-29","sessionIndex":23,"open":257.14,"high":258.36,"low":253.07,"close":254.69,"volume":65364308,"ma20":248.74,"upperBand":267.06,"lowerBand":230.43,"ema9":255.15,"rsi":74},{"date":"2026-07-30","sessionIndex":24,"open":254.55,"high":256.12,"low":252.51,"close":254.06,"volume":64859381,"ma20":249.94,"upperBand":266.24,"lowerBand":233.64,"ema9":254.93,"rsi":68},{"date":"2026-07-31","sessionIndex":25,"open":254.25,"high":256.9,"low":252.52,"close":254,"volume":70152429,"ma20":250.92,"upperBand":265.64,"lowerBand":236.21,"ema9":254.74,"rsi":64},{"date":"2026-08-03","sessionIndex":26,"open":253.75,"high":256.04,"low":247.17,"close":248.58,"volume":60324021,"ma20":251.63,"upperBand":264.34,"lowerBand":238.91,"ema9":253.51,"rsi":48.3},{"date":"2026-08-04","sessionIndex":27,"open":248.92,"high":250.37,"low":247.58,"close":249.63,"volume":71500413,"ma20":252.27,"upperBand":263.07,"lowerBand":241.47,"ema9":252.73,"rsi":47.2},{"date":"2026-08-05","sessionIndex":28,"open":249.94,"high":251.91,"low":246.04,"close":247.31,"volume":45340317,"ma20":252.57,"upperBand":262.44,"lowerBand":242.7,"ema9":251.65,"rsi":39.7},{"date":"2026-08-06","sessionIndex":29,"open":247.24,"high":249.94,"low":242.43,"close":243.62,"volume":75561746,"ma20":252.73,"upperBand":261.89,"lowerBand":243.57,"ema9":250.04,"rsi":25.4},{"date":"2026-08-07","sessionIndex":30,"open":244,"high":245.96,"low":241.6,"close":242.71,"volume":52656982,"ma20":252.63,"upperBand":262.16,"lowerBand":243.1,"ema9":248.57,"rsi":26.3},{"date":"2026-08-10","sessionIndex":31,"open":242.74,"high":243.49,"low":238.94,"close":239.97,"volume":69535115,"ma20":252.26,"upperBand":263.07,"lowerBand":241.45,"ema9":246.85,"rsi":17},{"date":"2026-08-11","sessionIndex":32,"open":239.69,"high":241.99,"low":237.29,"close":238.25,"volume":60151088,"ma20":251.7,"upperBand":264.08,"lowerBand":239.31,"ema9":245.13,"rsi":10.2},{"date":"2026-08-12","sessionIndex":33,"open":238.45,"high":241.09,"low":233,"close":233.88,"volume":66453134,"ma20":250.84,"upperBand":265.46,"lowerBand":236.21,"ema9":242.88,"rsi":9.4},{"date":"2026-08-13","sessionIndex":34,"open":233.69,"high":235.34,"low":232.9,"close":233.78,"volume":67650403,"ma20":249.88,"upperBand":266.24,"lowerBand":233.53,"ema9":241.06,"rsi":4.6},{"date":"2026-08-14","sessionIndex":35,"open":233.9,"high":235.13,"low":231.16,"close":231.87,"volume":57332754,"ma20":248.64,"upperBand":266.44,"lowerBand":230.84,"ema9":239.22,"rsi":4.4},{"date":"2026-08-17","sessionIndex":36,"open":232.24,"high":234.78,"low":227.26,"close":227.89,"volume":73111113,"ma20":247.29,"upperBand":266.99,"lowerBand":227.59,"ema9":236.95,"rsi":3.3},{"date":"2026-08-18","sessionIndex":37,"open":228.13,"high":231.97,"low":227.58,"close":229.49,"volume":50943183,"ma20":245.91,"upperBand":266.5,"lowerBand":225.31,"ema9":235.46,"rsi":8.7},{"date":"2026-08-19","sessionIndex":38,"open":229.51,"high":230.61,"low":226.33,"close":226.79,"volume":77927242,"ma20":244.3,"upperBand":265.58,"lowerBand":223.02,"ema9":233.73,"rsi":8.1},{"date":"2026-08-20","sessionIndex":39,"open":226.55,"high":228.23,"low":224.9,"close":225.32,"volume":48073009,"ma20":242.73,"upperBand":264.73,"lowerBand":220.73,"ema9":232.05,"rsi":7.8},{"date":"2026-08-21","sessionIndex":40,"open":225.53,"high":228.2,"low":224.14,"close":224.64,"volume":71982745,"ma20":241.05,"upperBand":263.19,"lowerBand":218.91,"ema9":230.57,"rsi":9.1},{"date":"2026-08-24","sessionIndex":41,"open":224.51,"high":226.72,"low":223.85,"close":224.44,"volume":57306465,"ma20":239.41,"upperBand":261.39,"lowerBand":217.44,"ema9":229.34,"rsi":5.6},{"date":"2026-08-25","sessionIndex":42,"open":224.34,"high":224.95,"low":223.66,"close":224.33,"volume":64366959,"ma20":237.76,"upperBand":259.05,"lowerBand":216.48,"ema9":228.34,"rsi":6.1},{"date":"2026-08-26","sessionIndex":43,"open":223.94,"high":226,"low":220.65,"close":221.4,"volume":69528584,"ma20":236.1,"upperBand":257.03,"lowerBand":215.16,"ema9":226.95,"rsi":6.3},{"date":"2026-08-27","sessionIndex":44,"open":221.38,"high":227.39,"low":220.55,"close":224.69,"volume":60733772,"ma20":234.63,"upperBand":254.41,"lowerBand":214.85,"ema9":226.5,"rsi":17.6},{"date":"2026-08-28","sessionIndex":45,"open":224.85,"high":226.71,"low":222.66,"close":223.57,"volume":74379830,"ma20":233.11,"upperBand":251.31,"lowerBand":214.91,"ema9":225.91,"rsi":18.7},{"date":"2026-08-31","sessionIndex":46,"open":223.96,"high":224.84,"low":222.26,"close":223.25,"volume":47207710,"ma20":231.84,"upperBand":249.06,"lowerBand":214.62,"ema9":225.38,"rsi":19.7},{"date":"2026-09-01","sessionIndex":47,"open":223.38,"high":228.57,"low":222.31,"close":226.2,"volume":77180170,"ma20":230.67,"upperBand":245.97,"lowerBand":215.37,"ema9":225.54,"rsi":33.6},{"date":"2026-09-02","sessionIndex":48,"open":226.26,"high":228.87,"low":224.34,"close":225.49,"volume":49803998,"ma20":229.58,"upperBand":242.97,"lowerBand":216.19,"ema9":225.53,"rsi":32.7},{"date":"2026-09-03","sessionIndex":49,"open":225.31,"high":227.95,"low":224.08,"close":226.5,"volume":71562402,"ma20":228.72,"upperBand":240.5,"lowerBand":216.94,"ema9":225.72,"rsi":38.4},{"date":"2026-09-04","sessionIndex":50,"open":226.43,"high":227.78,"low":224.9,"close":226.2,"volume":58913464,"ma20":227.9,"upperBand":237.81,"lowerBand":217.99,"ma50":239.1,"ema9":225.82,"rsi":45.6},{"date":"2026-09-07","sessionIndex":51,"open":226.36,"high":231.4,"low":224.99,"close":228.82,"volume":71448961,"ma20":227.34,"upperBand":235.59,"lowerBand":219.09,"ma50":239.14,"ema9":226.42,"rsi":48.4},{"date":"2026-09-08","sessionIndex":52,"open":228.63,"high":231.05,"low":226.94,"close":228.39,"volume":67554548,"ma20":226.85,"upperBand":233.44,"lowerBand":220.26,"ma50":239.18,"ema9":226.81,"rsi":54.4},{"date":"2026-09-09","sessionIndex":53,"open":228.37,"high":229.35,"low":225.85,"close":227.37,"volume":62632790,"ma20":226.52,"upperBand":232.28,"lowerBand":220.76,"ma50":239.15,"ema9":226.92,"rsi":55.8},{"date":"2026-09-10","sessionIndex":54,"open":227.7,"high":233.31,"low":226.12,"close":231.53,"volume":72175883,"ma20":226.41,"upperBand":231.66,"lowerBand":221.15,"ma50":239.18,"ema9":227.84,"rsi":66.3},{"date":"2026-09-11","sessionIndex":55,"open":231.91,"high":234.6,"low":228.06,"close":229.71,"volume":48870448,"ma20":226.3,"upperBand":231.18,"lowerBand":221.42,"ma50":239.08,"ema9":228.21,"rsi":61.6},{"date":"2026-09-14","sessionIndex":56,"open":229.57,"high":232.2,"low":227.86,"close":230.07,"volume":71065634,"ma20":226.41,"upperBand":231.52,"lowerBand":221.3,"ma50":238.99,"ema9":228.58,"rsi":62.5},{"date":"2026-09-15","sessionIndex":57,"open":230.15,"high":231.8,"low":228.37,"close":231.29,"volume":49763698,"ma20":226.5,"upperBand":231.88,"lowerBand":221.12,"ma50":238.88,"ema9":229.12,"rsi":73.2},{"date":"2026-09-16","sessionIndex":58,"open":231.63,"high":233.78,"low":229.07,"close":230.9,"volume":71530737,"ma20":226.71,"upperBand":232.41,"lowerBand":221,"ma50":238.68,"ema9":229.48,"rsi":66.8},{"date":"2026-09-17","sessionIndex":59,"open":230.98,"high":233.66,"low":229.07,"close":230.96,"volume":58472630,"ma20":226.99,"upperBand":232.95,"lowerBand":221.03,"ma50":238.49,"ema9":229.78,"rsi":71.3},{"date":"2026-09-18","sessionIndex":60,"open":230.63,"high":232.39,"low":227.17,"close":229.12,"volume":70981279,"ma20":227.21,"upperBand":233.14,"lowerBand":221.29,"ma50":238.18,"ema9":229.65,"rsi":65.5}];
+    const INDICES_DATA = [{"symbol":"SPX","name":"S&P 500","region":"Americas","price":5894.25,"change":32.8,"changePercent":0.56,"dayHigh":5908.12,"dayLow":5854.4,"volume":"2.84B","currency":"USD","lastUpdated":"16:00:02 EDT","sparkline":[5860,5854,5872,5868,5885,5879,5894]},{"symbol":"NDX","name":"NASDAQ 100","region":"Americas","price":20612.4,"change":184.6,"changePercent":0.9,"dayHigh":20680.1,"dayLow":20450.3,"volume":"4.12B","currency":"USD","lastUpdated":"16:00:00 EDT","sparkline":[20450,20480,20520,20510,20590,20570,20612]},{"symbol":"DJI","name":"Dow Jones 30","region":"Americas","price":43245.8,"change":-74.2,"changePercent":-0.17,"dayHigh":43380,"dayLow":43190.5,"volume":"345M","currency":"USD","lastUpdated":"16:00:00 EDT","sparkline":[43320,43350,43290,43310,43210,43260,43245]},{"symbol":"FTSE","name":"FTSE 100","region":"Europe","price":8295.1,"change":28.45,"changePercent":0.34,"dayHigh":8312.2,"dayLow":8264,"volume":"780M","currency":"GBP","lastUpdated":"16:35:00 BST","sparkline":[8265,8274,8290,8282,8305,8290,8295]},{"symbol":"DAX","name":"DAX 40","region":"Europe","price":19488.6,"change":112.3,"changePercent":0.58,"dayHigh":19524,"dayLow":19390.1,"volume":"640M","currency":"EUR","lastUpdated":"17:30:00 CEST","sparkline":[19390,19410,19445,19430,19495,19470,19488]},{"symbol":"N225","name":"Nikkei 225","region":"Asia-Pacific","price":39180.3,"change":-210.5,"changePercent":-0.53,"dayHigh":39420,"dayLow":39050.8,"volume":"1.2B","currency":"JPY","lastUpdated":"15:00:00 JST","sparkline":[39390,39320,39210,39280,39100,39140,39180]},{"symbol":"HSI","name":"Hang Seng","region":"Asia-Pacific","price":20724.9,"change":362.15,"changePercent":1.78,"dayHigh":20850,"dayLow":20410,"volume":"2.1B","currency":"HKD","lastUpdated":"16:00:00 HKT","sparkline":[20420,20510,20640,20590,20780,20700,20724]},{"symbol":"SHCOMP","name":"Shanghai Composite","region":"Asia-Pacific","price":3345.2,"change":22.8,"changePercent":0.69,"dayHigh":3360.5,"dayLow":3318,"volume":"4.8B","currency":"CNY","lastUpdated":"15:00:00 CST","sparkline":[3320,3328,3340,3335,3352,3341,3345]},{"symbol":"NIFTY","name":"Nifty 50","region":"Asia-Pacific","price":25114.8,"change":89.2,"changePercent":0.36,"dayHigh":25180,"dayLow":24995,"volume":"490M","currency":"INR","lastUpdated":"15:30:00 IST","sparkline":[25020,25050,25090,25070,25140,25100,25114]}];
+    const HEATMAP_DATA = [{"ticker":"NVDA","company":"NVIDIA Corp","sector":"AI & Semiconductors","marketCap":3420,"price":139.8,"changePercent":3.42,"volume":"62.4M","peRatio":58.4,"high52w":144.42,"low52w":45.1},{"ticker":"MSFT","company":"Microsoft Corp","sector":"AI & Semiconductors","marketCap":3180,"price":428.15,"changePercent":1.15,"volume":"21.8M","peRatio":35.2,"high52w":468.35,"low52w":309.45},{"ticker":"GOOGL","company":"Alphabet Inc","sector":"AI & Semiconductors","marketCap":2040,"price":165.3,"changePercent":1.64,"volume":"24.1M","peRatio":23.8,"high52w":191.75,"low52w":120.21},{"ticker":"TSM","company":"Taiwan Semi ADR","sector":"AI & Semiconductors","marketCap":990,"price":192.4,"changePercent":2.85,"volume":"18.9M","peRatio":31.4,"high52w":205.84,"low52w":84.5},{"ticker":"AVGO","company":"Broadcom Inc","sector":"AI & Semiconductors","marketCap":830,"price":178.6,"changePercent":2.1,"volume":"14.2M","peRatio":42.1,"high52w":185.16,"low52w":80.8},{"ticker":"AMD","company":"Adv Micro Devices","sector":"AI & Semiconductors","marketCap":252,"price":156.25,"changePercent":-1.24,"volume":"48.5M","peRatio":112,"high52w":227.3,"low52w":94.04},{"ticker":"ASML","company":"ASML Holding ADR","sector":"AI & Semiconductors","marketCap":290,"price":712.5,"changePercent":-2.35,"volume":"4.8M","peRatio":38.6,"high52w":1110.09,"low52w":654.1},{"ticker":"PLTR","company":"Palantir Tech","sector":"AI & Semiconductors","marketCap":98,"price":43.8,"changePercent":4.88,"volume":"72.1M","peRatio":118.5,"high52w":44.9,"low52w":14.48},{"ticker":"XOM","company":"Exxon Mobil","sector":"Energy","marketCap":492,"price":123.4,"changePercent":0.85,"volume":"14.9M","peRatio":14.2,"high52w":126.34,"low52w":95.77},{"ticker":"CVX","company":"Chevron Corp","sector":"Energy","marketCap":278,"price":152.1,"changePercent":0.42,"volume":"8.4M","peRatio":13.8,"high52w":167.11,"low52w":139.6},{"ticker":"SHEL","company":"Shell plc ADR","sector":"Energy","marketCap":215,"price":68.3,"changePercent":-0.65,"volume":"6.2M","peRatio":11.2,"high52w":74.33,"low52w":60.1},{"ticker":"COP","company":"ConocoPhillips","sector":"Energy","marketCap":126,"price":108.9,"changePercent":0.25,"volume":"5.1M","peRatio":12.6,"high52w":134.5,"low52w":104.2},{"ticker":"SLB","company":"Schlumberger Ltd","sector":"Energy","marketCap":62,"price":43.5,"changePercent":-1.45,"volume":"9.8M","peRatio":13.9,"high52w":61.4,"low52w":41.2},{"ticker":"EOG","company":"EOG Resources","sector":"Energy","marketCap":73,"price":128.4,"changePercent":1.1,"volume":"3.4M","peRatio":10.4,"high52w":139.8,"low52w":112.5},{"ticker":"TTE","company":"TotalEnergies SE","sector":"Energy","marketCap":148,"price":63.8,"changePercent":-0.8,"volume":"3.9M","peRatio":8.1,"high52w":73.2,"low52w":59.8},{"ticker":"JPM","company":"JPMorgan Chase","sector":"Financials","marketCap":628,"price":221.75,"changePercent":1.45,"volume":"11.2M","peRatio":12.8,"high52w":225.48,"low52w":138.8},{"ticker":"BAC","company":"Bank of America","sector":"Financials","marketCap":334,"price":42.6,"changePercent":0.9,"volume":"38.5M","peRatio":14.1,"high52w":44.44,"low52w":24.96},{"ticker":"WFC","company":"Wells Fargo & Co","sector":"Financials","marketCap":224,"price":63.85,"changePercent":2.1,"volume":"19.4M","peRatio":12.9,"high52w":64.92,"low52w":38.6},{"ticker":"GS","company":"Goldman Sachs","sector":"Financials","marketCap":168,"price":512.4,"changePercent":1.8,"volume":"2.8M","peRatio":16.5,"high52w":524.3,"low52w":289.36},{"ticker":"MS","company":"Morgan Stanley","sector":"Financials","marketCap":188,"price":116.2,"changePercent":3.2,"volume":"14.1M","peRatio":17.8,"high52w":118.45,"low52w":69.42},{"ticker":"V","company":"Visa Inc","sector":"Financials","marketCap":560,"price":282.4,"changePercent":0.15,"volume":"6.4M","peRatio":29.4,"high52w":290.96,"low52w":227.68},{"ticker":"MA","company":"Mastercard Inc","sector":"Financials","marketCap":472,"price":508.9,"changePercent":0.4,"volume":"2.9M","peRatio":36.1,"high52w":518.25,"low52w":365.1},{"ticker":"BLK","company":"BlackRock Inc","sector":"Financials","marketCap":146,"price":978.5,"changePercent":1.25,"volume":"750K","peRatio":24.2,"high52w":1012,"low52w":602}];
+    const METALS_DATA = [{"symbol":"XAU/USD","name":"Gold Spot","category":"Metals","unit":"oz","bid":2658.4,"ask":2658.9,"last":2658.65,"change":14.3,"changePercent":0.54,"high24h":2665.2,"low24h":2641.8,"sparkline":[2642,2648,2651,2649,2663,2655,2658]},{"symbol":"XAG/USD","name":"Silver Spot","category":"Metals","unit":"oz","bid":31.42,"ask":31.46,"last":31.44,"change":0.48,"changePercent":1.55,"high24h":31.85,"low24h":30.82,"sparkline":[30.85,31.02,31.18,31.1,31.62,31.35,31.44]},{"symbol":"XPT/USD","name":"Platinum Spot","category":"Metals","unit":"oz","bid":994.2,"ask":996.8,"last":995.5,"change":-4.8,"changePercent":-0.48,"high24h":1008.5,"low24h":989.1,"sparkline":[1005,1002,998,992,990,997,995]},{"symbol":"XPD/USD","name":"Palladium Spot","category":"Metals","unit":"oz","bid":1018.5,"ask":1024,"last":1021.25,"change":12.75,"changePercent":1.26,"high24h":1035,"low24h":998,"sparkline":[1001,1008,1014,1012,1028,1019,1021]},{"symbol":"WTI/USD","name":"Crude Oil (WTI)","category":"Energy","unit":"bbl","bid":70.88,"ask":70.92,"last":70.9,"change":-0.84,"changePercent":-1.17,"high24h":72.15,"low24h":70.4,"sparkline":[71.9,71.8,71.2,71.5,70.6,70.8,70.9]},{"symbol":"BRENT/USD","name":"Brent Crude","category":"Energy","unit":"bbl","bid":74.46,"ask":74.5,"last":74.48,"change":-0.72,"changePercent":-0.96,"high24h":75.8,"low24h":73.95,"sparkline":[75.4,75.3,74.8,75.1,74.2,74.3,74.48]},{"symbol":"HG/USD","name":"Copper Futures","category":"Metals","unit":"lb","bid":4.382,"ask":4.388,"last":4.385,"change":0.045,"changePercent":1.04,"high24h":4.415,"low24h":4.32,"sparkline":[4.33,4.35,4.36,4.34,4.4,4.37,4.385]}];
+
+    let simSpeed = 1;
+    function toggleSimSpeed() {
+      simSpeed = simSpeed === 1 ? 2 : simSpeed === 2 ? 5 : 1;
+      document.getElementById('speed-label').textContent = simSpeed + 'X';
+    }
+
+    const sessions = [
+      { city: 'New York', tz: 'America/New_York', open: 9.5, close: 16 },
+      { city: 'London', tz: 'Europe/London', open: 8, close: 16.5 },
+      { city: 'Frankfurt', tz: 'Europe/Berlin', open: 9, close: 17.5 },
+      { city: 'Tokyo', tz: 'Asia/Tokyo', open: 9, close: 15 },
+      { city: 'Hong Kong', tz: 'Asia/Hong_Kong', open: 9.5, close: 16 },
+      { city: 'Sydney', tz: 'Australia/Sydney', open: 10, close: 16 }
+    ];
+
+    function updateClocks() {
+      const now = new Date();
+      document.getElementById('live-utc').textContent = 'UTC ' + now.toISOString().substring(11, 19);
+
+      const container = document.getElementById('clocks-container');
+      container.innerHTML = sessions.map(s => {
+        const timeStr = new Intl.DateTimeFormat('en-US', {
+          timeZone: s.tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+        }).format(now);
+
+        const hours = now.getUTCHours() + now.getUTCMinutes() / 60;
+        const isOpen = hours >= 8 && hours <= 20;
+        return `
+          <div class="clock-item">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-weight:600; color:#e2e8f0;">${s.city}</span>
+              <span class="status-badge" style="font-size:9px; padding:1px 4px;">${isOpen ? 'OPEN' : 'CLOSED'}</span>
+            </div>
+            <div class="clock-time">${timeStr}</div>
+            <div class="muted" style="font-size:10px;">${s.tz.split('/')[1]}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderIndices() {
+      const tbody = document.getElementById('indices-tbody');
+      tbody.innerHTML = INDICES_DATA.map(idx => {
+        const isPos = idx.changePercent >= 0;
+        return `
+          <tr>
+            <td>
+              <div style="font-weight:600; color:#f8fafc;">${idx.symbol}</div>
+              <div class="muted" style="font-size:10px;">${idx.name}</div>
+            </td>
+            <td style="font-weight:600;">${idx.price.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+            <td class="${isPos ? 'green' : 'red'}" style="font-weight:600;">
+              ${isPos ? '+' : ''}${idx.changePercent.toFixed(2)}%
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderHeatmap() {
+      const container = document.getElementById('heatmap-container');
+      container.innerHTML = HEATMAP_DATA.map(stk => {
+        const isPos = stk.changePercent >= 0;
+        const intensity = Math.min(Math.abs(stk.changePercent) / 4, 1);
+        const bg = isPos
+          ? `rgba(16, 185, 129, ${0.15 + intensity * 0.45})`
+          : `rgba(239, 68, 68, ${0.15 + intensity * 0.45})`;
+        const border = isPos ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)';
+        return `
+          <div class="heatmap-cell" style="background: ${bg}; border-color: ${border};">
+            <div style="font-weight:700; color:#f8fafc;">${stk.ticker}</div>
+            <div class="${isPos ? 'green' : 'red'}" style="font-size:11px; font-weight:600;">
+              ${isPos ? '+' : ''}${stk.changePercent.toFixed(2)}%
+            </div>
+            <div class="muted" style="font-size:9px;">$${stk.price}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderMetals() {
+      const tbody = document.getElementById('metals-tbody');
+      tbody.innerHTML = METALS_DATA.map(m => {
+        const isPos = m.changePercent >= 0;
+        return `
+          <tr>
+            <td>
+              <div style="font-weight:600; color:#f8fafc;">${m.symbol}</div>
+              <div class="muted" style="font-size:10px;">${m.name}</div>
+            </td>
+            <td>${m.bid.toLocaleString()}</td>
+            <td>${m.ask.toLocaleString()}</td>
+            <td class="${isPos ? 'green' : 'red'}" style="font-weight:600;">
+              ${isPos ? '+' : ''}${m.changePercent.toFixed(2)}%
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      const gold = METALS_DATA.find(m => m.symbol.includes('XAU'))?.last || 2658;
+      const silver = METALS_DATA.find(m => m.symbol.includes('XAG'))?.last || 31.4;
+      document.getElementById('gold-silver-ratio').textContent = (gold / silver).toFixed(2) + 'x';
+    }
+
+    function renderAaplChart() {
+      const svg = document.getElementById('aapl-svg');
+      const width = 700;
+      const mainHeight = 200;
+      const subTop = 215;
+      const subHeight = 70;
+      const subBottom = subTop + subHeight;
+      const padLeft = 20;
+      const padRight = 50;
+
+      const prices = AAPL_DATA.flatMap(d => [d.low, d.high]);
+      const minP = Math.min(...prices) - 2;
+      const maxP = Math.max(...prices) + 2;
+      const rangeP = maxP - minP;
+
+      const getY = p => mainHeight - 10 - ((p - minP) / rangeP) * (mainHeight - 25);
+      const stepX = (width - padLeft - padRight) / AAPL_DATA.length;
+
+      let candleHtml = '';
+      let smaPoints = [];
+      let emaPoints = [];
+      let rsiPoints = [];
+      let rsiAreaPoints = [];
+
+      AAPL_DATA.forEach((c, i) => {
+        const x = padLeft + i * stepX + stepX / 2;
+        const yOpen = getY(c.open);
+        const yClose = getY(c.close);
+        const yHigh = getY(c.high);
+        const yLow = getY(c.low);
+        const isBull = c.close >= c.open;
+        const color = isBull ? '#10b981' : '#ef4444';
+
+        candleHtml += `<line x1="${x}" y1="${yHigh}" x2="${x}" y2="${yLow}" stroke="${color}" stroke-width="1.2"/>`;
+        const top = Math.min(yOpen, yClose);
+        const bHeight = Math.max(Math.abs(yClose - yOpen), 2);
+        candleHtml += `<rect x="${x - 2.5}" y="${top}" width="5" height="${bHeight}" fill="${color}" rx="0.5"/>`;
+
+        if (c.ma20) smaPoints.push(`${x},${getY(c.ma20)}`);
+        if (c.ema9) emaPoints.push(`${x},${getY(c.ema9)}`);
+
+        const rsiVal = c.rsi !== undefined ? c.rsi : 50;
+        const yRsi = subTop + (1 - rsiVal / 100) * subHeight;
+        rsiPoints.push(`${x.toFixed(1)},${yRsi.toFixed(1)}`);
+      });
+
+      if (rsiPoints.length > 0) {
+        const firstX = padLeft + stepX / 2;
+        const lastX = padLeft + (AAPL_DATA.length - 1) * stepX + stepX / 2;
+        rsiAreaPoints = [`${firstX},${subBottom}`, ...rsiPoints, `${lastX},${subBottom}`];
+      }
+
+      // Horizontal Volume-at-Price Profile (Right Side)
+      const numBins = 18;
+      const binStep = rangeP / numBins;
+      const vapBins = Array.from({ length: numBins }, (_, i) => ({
+        priceLow: minP + i * binStep,
+        priceHigh: minP + (i + 1) * binStep,
+        priceMid: minP + (i + 0.5) * binStep,
+        totalVol: 0,
+        bullVol: 0,
+        bearVol: 0,
+      }));
+
+      AAPL_DATA.forEach(c => {
+        const cLow = c.low;
+        const cHigh = c.high;
+        const span = Math.max(0.01, cHigh - cLow);
+        const isBull = c.close >= c.open;
+        const vol = c.volume || 45000000;
+        vapBins.forEach(b => {
+          const overlap = Math.max(0, Math.min(b.priceHigh, cHigh) - Math.max(b.priceLow, cLow));
+          if (overlap > 0) {
+            const fraction = overlap / span;
+            const v = vol * fraction;
+            b.totalVol += v;
+            if (isBull) b.bullVol += v; else b.bearVol += v;
+          }
+        });
+      });
+
+      let maxVapVol = 0;
+      let pocBin = vapBins[0];
+      vapBins.forEach(b => {
+        if (b.totalVol > maxVapVol) {
+          maxVapVol = b.totalVol;
+          pocBin = b;
+        }
+      });
+
+      const vapMaxW = 110;
+      const profileRightEdge = width - padRight;
+      let vapHtml = '';
+      vapBins.forEach(b => {
+        const barW = maxVapVol > 0 ? (b.totalVol / maxVapVol) * vapMaxW : 0;
+        const xStart = profileRightEdge - barW;
+        const yTop = getY(b.priceHigh);
+        const yBottom = getY(b.priceLow);
+        const bHeight = Math.max(2, Math.abs(yBottom - yTop) - 0.8);
+        const bullW = b.totalVol > 0 ? (b.bullVol / b.totalVol) * barW : 0;
+        const bearW = Math.max(0, barW - bullW);
+        const isPoc = b === pocBin;
+
+        vapHtml += `<rect x="${xStart}" y="${yTop}" width="${bullW}" height="${bHeight}" fill="#10b981" fill-opacity="${isPoc ? 0.85 : 0.4}" rx="0.5"/>`;
+        vapHtml += `<rect x="${xStart + bullW}" y="${yTop}" width="${bearW}" height="${bHeight}" fill="#ef4444" fill-opacity="${isPoc ? 0.85 : 0.4}" rx="0.5"/>`;
+        if (isPoc) {
+          vapHtml += `<rect x="${xStart}" y="${yTop}" width="${barW}" height="${bHeight}" fill="none" stroke="#f59e0b" stroke-width="1.2" rx="0.5"/>`;
+        }
+      });
+
+      const yPoc = getY(pocBin.priceMid);
+      vapHtml += `
+        <line x1="${padLeft}" y1="${yPoc}" x2="${profileRightEdge}" y2="${yPoc}" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="4,3" opacity="0.9"/>
+        <rect x="${profileRightEdge + 2}" y="${yPoc - 7}" width="46" height="14" rx="2" fill="#f59e0b"/>
+        <text x="${profileRightEdge + 25}" y="${yPoc + 3.5}" text-anchor="middle" fill="#04070a" font-size="7.5" font-family="monospace" font-weight="bold">POC $${pocBin.priceMid.toFixed(1)}</text>
+      `;
+
+      const smaPolyline = smaPoints.length ? `<polyline points="${smaPoints.join(' ')}" fill="none" stroke="#f59e0b" stroke-width="1.5"/>` : '';
+      const emaPolyline = emaPoints.length ? `<polyline points="${emaPoints.join(' ')}" fill="none" stroke="#818cf8" stroke-width="1.5"/>` : '';
+
+      const rsiY70 = subTop + (1 - 0.70) * subHeight;
+      const rsiY50 = subTop + (1 - 0.50) * subHeight;
+      const rsiY30 = subTop + (1 - 0.30) * subHeight;
+
+      const rsiPolyline = rsiPoints.length ? `
+        <polygon points="${rsiAreaPoints.join(' ')}" fill="#38bdf8" fill-opacity="0.15"/>
+        <polyline points="${rsiPoints.join(' ')}" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      ` : '';
+
+      const lastRsi = AAPL_DATA[AAPL_DATA.length - 1]?.rsi || 62.4;
+      const lastX = padLeft + (AAPL_DATA.length - 1) * stepX + stepX / 2;
+      const lastY = subTop + (1 - lastRsi / 100) * subHeight;
+
+      svg.innerHTML = `
+        <line x1="${padLeft}" y1="15" x2="${width - padRight}" y2="15" stroke="#1e293b" stroke-dasharray="2,2"/>
+        <line x1="${padLeft}" y1="${mainHeight/2}" x2="${width - padRight}" y2="${mainHeight/2}" stroke="#1e293b" stroke-dasharray="2,2"/>
+        <line x1="${padLeft}" y1="${mainHeight - 10}" x2="${width - padRight}" y2="${mainHeight - 10}" stroke="#1e293b" stroke-dasharray="2,2"/>
+        
+        <!-- Horizontal Volume-at-Price Profile (Right Side) -->
+        <g id="vap-profile">
+          <rect x="${profileRightEdge - vapMaxW - 4}" y="10" width="${vapMaxW + 4}" height="${mainHeight - 20}" fill="#03070b" fill-opacity="0.5" rx="2"/>
+          <line x1="${profileRightEdge - vapMaxW - 4}" y1="10" x2="${profileRightEdge - vapMaxW - 4}" y2="${mainHeight - 10}" stroke="#1e293b" stroke-dasharray="2,2" stroke-width="0.8"/>
+          ${vapHtml}
+        </g>
+
+        ${candleHtml}
+        ${smaPolyline}
+        ${emaPolyline}
+
+        <line x1="${padLeft}" y1="${mainHeight}" x2="${width - padRight}" y2="${mainHeight}" stroke="#334155" stroke-width="1.2"/>
+        <rect x="${padLeft}" y="${subTop}" width="${width - padLeft - padRight}" height="${subHeight}" fill="#04070a" opacity="0.8"/>
+        
+        <rect x="${padLeft}" y="${subTop}" width="${width - padLeft - padRight}" height="${rsiY70 - subTop}" fill="#f43f5e" fill-opacity="0.08"/>
+        <rect x="${padLeft}" y="${rsiY30}" width="${width - padLeft - padRight}" height="${subBottom - rsiY30}" fill="#10b981" fill-opacity="0.08"/>
+
+        <line x1="${padLeft}" y1="${rsiY70}" x2="${width - padRight}" y2="${rsiY70}" stroke="#f43f5e" stroke-width="0.8" stroke-dasharray="3,3" opacity="0.8"/>
+        <line x1="${padLeft}" y1="${rsiY50}" x2="${width - padRight}" y2="${rsiY50}" stroke="#475569" stroke-width="0.7" stroke-dasharray="2,2" opacity="0.6"/>
+        <line x1="${padLeft}" y1="${rsiY30}" x2="${width - padRight}" y2="${rsiY30}" stroke="#10b981" stroke-width="0.8" stroke-dasharray="3,3" opacity="0.8"/>
+
+        <text x="${width - padRight + 6}" y="${rsiY70 + 3}" fill="#f43f5e" font-size="8.5" font-family="monospace" font-weight="bold">70 OB</text>
+        <text x="${width - padRight + 6}" y="${rsiY50 + 3}" fill="#64748b" font-size="8" font-family="monospace">50</text>
+        <text x="${width - padRight + 6}" y="${rsiY30 + 3}" fill="#10b981" font-size="8.5" font-family="monospace" font-weight="bold">30 OS</text>
+        <text x="${padLeft + 4}" y="${subTop + 10}" fill="#38bdf8" font-size="8.5" font-family="monospace" font-weight="bold">RSI(14) SECONDARY OVERLAY</text>
+
+        ${rsiPolyline}
+
+        <circle cx="${lastX}" cy="${lastY}" r="3" fill="#38bdf8" stroke="#04070a" stroke-width="1.5"/>
+        <rect x="${width - padRight + 4}" y="${Math.max(subTop, Math.min(subBottom - 13, lastY - 6))}" width="34" height="13" rx="2" fill="#0284c7"/>
+        <text x="${width - padRight + 21}" y="${Math.max(subTop, Math.min(subBottom - 13, lastY - 6)) + 9.5}" text-anchor="middle" fill="#030708" font-size="8" font-family="monospace" font-weight="bold">${lastRsi.toFixed(1)}</text>
+      `;
+
+      const last = AAPL_DATA[AAPL_DATA.length - 1];
+      const prev = AAPL_DATA[AAPL_DATA.length - 2] || last;
+      const diff = last.close - prev.close;
+      const diffPct = (diff / prev.close) * 100;
+      const el = document.getElementById('aapl-latest');
+      el.textContent = `$${last.close.toFixed(2)} (${diff >= 0 ? '+' : ''}${diffPct.toFixed(2)}%) | POC $${pocBin.priceMid.toFixed(1)} | RSI ${lastRsi.toFixed(1)}`;
+      el.className = diff >= 0 ? 'green' : 'red';
+    }
+
+    updateClocks();
+    renderIndices();
+    renderHeatmap();
+    renderMetals();
+    renderAaplChart();
+    setInterval(updateClocks, 1000);
+  </script>
+</body>
+</html>
