@@ -236,10 +236,10 @@ function generateStandaloneHtml(
       </div>
     </section>
 
-    <!-- AAPL 60-Session Chart & RSI Indicator -->
+    <!-- AAPL 60-Session Chart & RSI Indicator & Volume Profile -->
     <section class="card" style="grid-column: span 2;">
       <div class="card-header">
-        <span>AAPL.US — 60-SESSION CANDLESTICK & RSI OVERLAY</span>
+        <span>AAPL.US — 60-SESSION CANDLESTICK, RSI & VOLUME PROFILE</span>
         <span id="aapl-latest" class="green">$231.40 (+1.25%)</span>
       </div>
       <div class="card-body">
@@ -248,7 +248,8 @@ function generateStandaloneHtml(
           <div>
             <span>SMA20: <strong style="color: #f59e0b;">Amber</strong></span> &nbsp;|&nbsp;
             <span>EMA9: <strong style="color: #818cf8;">Indigo</strong></span> &nbsp;|&nbsp;
-            <span>RSI (14) Secondary Overlay: <strong style="color: #38bdf8;">Electric Cyan</strong> (<span style="color:#f43f5e;">70 OB</span> / <span style="color:#10b981;">30 OS</span>)</span>
+            <span>RSI(14): <strong style="color: #38bdf8;">Cyan</strong> (<span style="color:#f43f5e;">70 OB</span> / <span style="color:#10b981;">30 OS</span>)</span> &nbsp;|&nbsp;
+            <span>VAP Profile: <strong style="color: #f59e0b;">POC Golden Bar</strong></span>
           </div>
           <span>60 Trading Sessions</span>
         </div>
@@ -468,6 +469,71 @@ function generateStandaloneHtml(
         rsiAreaPoints = [\`\${firstX},\${subBottom}\`, ...rsiPoints, \`\${lastX},\${subBottom}\`];
       }
 
+      // Horizontal Volume-at-Price Profile (Right Side)
+      const numBins = 18;
+      const binStep = rangeP / numBins;
+      const vapBins = Array.from({ length: numBins }, (_, i) => ({
+        priceLow: minP + i * binStep,
+        priceHigh: minP + (i + 1) * binStep,
+        priceMid: minP + (i + 0.5) * binStep,
+        totalVol: 0,
+        bullVol: 0,
+        bearVol: 0,
+      }));
+
+      AAPL_DATA.forEach(c => {
+        const cLow = c.low;
+        const cHigh = c.high;
+        const span = Math.max(0.01, cHigh - cLow);
+        const isBull = c.close >= c.open;
+        const vol = c.volume || 45000000;
+        vapBins.forEach(b => {
+          const overlap = Math.max(0, Math.min(b.priceHigh, cHigh) - Math.max(b.priceLow, cLow));
+          if (overlap > 0) {
+            const fraction = overlap / span;
+            const v = vol * fraction;
+            b.totalVol += v;
+            if (isBull) b.bullVol += v; else b.bearVol += v;
+          }
+        });
+      });
+
+      let maxVapVol = 0;
+      let pocBin = vapBins[0];
+      vapBins.forEach(b => {
+        if (b.totalVol > maxVapVol) {
+          maxVapVol = b.totalVol;
+          pocBin = b;
+        }
+      });
+
+      const vapMaxW = 110;
+      const profileRightEdge = width - padRight;
+      let vapHtml = '';
+      vapBins.forEach(b => {
+        const barW = maxVapVol > 0 ? (b.totalVol / maxVapVol) * vapMaxW : 0;
+        const xStart = profileRightEdge - barW;
+        const yTop = getY(b.priceHigh);
+        const yBottom = getY(b.priceLow);
+        const bHeight = Math.max(2, Math.abs(yBottom - yTop) - 0.8);
+        const bullW = b.totalVol > 0 ? (b.bullVol / b.totalVol) * barW : 0;
+        const bearW = Math.max(0, barW - bullW);
+        const isPoc = b === pocBin;
+
+        vapHtml += \`<rect x="\${xStart}" y="\${yTop}" width="\${bullW}" height="\${bHeight}" fill="#10b981" fill-opacity="\${isPoc ? 0.85 : 0.4}" rx="0.5"/>\`;
+        vapHtml += \`<rect x="\${xStart + bullW}" y="\${yTop}" width="\${bearW}" height="\${bHeight}" fill="#ef4444" fill-opacity="\${isPoc ? 0.85 : 0.4}" rx="0.5"/>\`;
+        if (isPoc) {
+          vapHtml += \`<rect x="\${xStart}" y="\${yTop}" width="\${barW}" height="\${bHeight}" fill="none" stroke="#f59e0b" stroke-width="1.2" rx="0.5"/>\`;
+        }
+      });
+
+      const yPoc = getY(pocBin.priceMid);
+      vapHtml += \`
+        <line x1="\${padLeft}" y1="\${yPoc}" x2="\${profileRightEdge}" y2="\${yPoc}" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="4,3" opacity="0.9"/>
+        <rect x="\${profileRightEdge + 2}" y="\${yPoc - 7}" width="46" height="14" rx="2" fill="#f59e0b"/>
+        <text x="\${profileRightEdge + 25}" y="\${yPoc + 3.5}" text-anchor="middle" fill="#04070a" font-size="7.5" font-family="monospace" font-weight="bold">POC $\${pocBin.priceMid.toFixed(1)}</text>
+      \`;
+
       const smaPolyline = smaPoints.length ? \`<polyline points="\${smaPoints.join(' ')}" fill="none" stroke="#f59e0b" stroke-width="1.5"/>\` : '';
       const emaPolyline = emaPoints.length ? \`<polyline points="\${emaPoints.join(' ')}" fill="none" stroke="#818cf8" stroke-width="1.5"/>\` : '';
 
@@ -488,6 +554,14 @@ function generateStandaloneHtml(
         <line x1="\${padLeft}" y1="15" x2="\${width - padRight}" y2="15" stroke="#1e293b" stroke-dasharray="2,2"/>
         <line x1="\${padLeft}" y1="\${mainHeight/2}" x2="\${width - padRight}" y2="\${mainHeight/2}" stroke="#1e293b" stroke-dasharray="2,2"/>
         <line x1="\${padLeft}" y1="\${mainHeight - 10}" x2="\${width - padRight}" y2="\${mainHeight - 10}" stroke="#1e293b" stroke-dasharray="2,2"/>
+        
+        <!-- Horizontal Volume-at-Price Profile (Right Side) -->
+        <g id="vap-profile">
+          <rect x="\${profileRightEdge - vapMaxW - 4}" y="10" width="\${vapMaxW + 4}" height="\${mainHeight - 20}" fill="#03070b" fill-opacity="0.5" rx="2"/>
+          <line x1="\${profileRightEdge - vapMaxW - 4}" y1="10" x2="\${profileRightEdge - vapMaxW - 4}" y2="\${mainHeight - 10}" stroke="#1e293b" stroke-dasharray="2,2" stroke-width="0.8"/>
+          \${vapHtml}
+        </g>
+
         \${candleHtml}
         \${smaPolyline}
         \${emaPolyline}
@@ -519,7 +593,7 @@ function generateStandaloneHtml(
       const diff = last.close - prev.close;
       const diffPct = (diff / prev.close) * 100;
       const el = document.getElementById('aapl-latest');
-      el.textContent = \`$\${last.close.toFixed(2)} (\${diff >= 0 ? '+' : ''}\${diffPct.toFixed(2)}%) | RSI \${lastRsi.toFixed(1)}\`;
+      el.textContent = \`$\${last.close.toFixed(2)} (\${diff >= 0 ? '+' : ''}\${diffPct.toFixed(2)}%) | POC $\${pocBin.priceMid.toFixed(1)} | RSI \${lastRsi.toFixed(1)}\`;
       el.className = diff >= 0 ? 'green' : 'red';
     }
 

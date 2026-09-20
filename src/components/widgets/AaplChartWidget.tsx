@@ -15,6 +15,21 @@ interface AaplChartWidgetProps {
   liveFlash: boolean;
 }
 
+export interface VapBin {
+  index: number;
+  priceLow: number;
+  priceHigh: number;
+  priceMid: number;
+  yTop: number;
+  yBottom: number;
+  height: number;
+  totalVolume: number;
+  bullVolume: number;
+  bearVolume: number;
+  isPoc: boolean;
+  isValueArea: boolean;
+}
+
 export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
   const [chartType, setChartType] = useState<'candlestick' | 'line' | 'area'>('candlestick');
   const [showSMA20, setShowSMA20] = useState(true);
@@ -23,7 +38,9 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
   const [showBands, setShowBands] = useState(true);
   const [showRsiOverlay, setShowRsiOverlay] = useState(true);
   const [showVolumeBars, setShowVolumeBars] = useState(true);
+  const [showVapProfile, setShowVapProfile] = useState(true);
   const [hoveredCandle, setHoveredCandle] = useState<CandleData | null>(null);
+  const [hoveredVapBin, setHoveredVapBin] = useState<VapBin | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -141,6 +158,105 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
 
   const activeRsiBadge = getRsiStateBadge(activeRsi);
 
+  // Horizontal Volume-at-Price (VAP) Profile Calculations
+  const NUM_VAP_BINS = 24;
+  const binStepPrice = priceRange / NUM_VAP_BINS;
+
+  const rawBins: VapBin[] = Array.from({ length: NUM_VAP_BINS }, (_, i) => {
+    const pLow = minPrice + i * binStepPrice;
+    const pHigh = pLow + binStepPrice;
+    const pMid = (pLow + pHigh) / 2;
+    const yTop = getY(pHigh);
+    const yBottom = getY(pLow);
+    const height = Math.max(2, Math.abs(yBottom - yTop) - 0.8);
+    return {
+      index: i,
+      priceLow: pLow,
+      priceHigh: pHigh,
+      priceMid: pMid,
+      yTop,
+      yBottom,
+      height,
+      totalVolume: 0,
+      bullVolume: 0,
+      bearVolume: 0,
+      isPoc: false,
+      isValueArea: false,
+    };
+  });
+
+  // Distribute volume proportionally across overlapping price bins
+  candles.forEach((c) => {
+    const isBull = c.close >= c.open;
+    const cLow = Math.max(minPrice, c.low);
+    const cHigh = Math.min(maxPrice, c.high);
+    const span = Math.max(0.01, cHigh - cLow);
+
+    rawBins.forEach((b) => {
+      const overlap = Math.max(0, Math.min(b.priceHigh, cHigh) - Math.max(b.priceLow, cLow));
+      if (overlap > 0) {
+        const fraction = overlap / span;
+        const vol = c.volume * fraction;
+        b.totalVolume += vol;
+        if (isBull) {
+          b.bullVolume += vol;
+        } else {
+          b.bearVolume += vol;
+        }
+      }
+    });
+  });
+
+  // Identify Point of Control (POC) bin with the highest trading activity
+  let maxVapVolume = 0;
+  let pocIndex = 0;
+  rawBins.forEach((b, i) => {
+    if (b.totalVolume > maxVapVolume) {
+      maxVapVolume = b.totalVolume;
+      pocIndex = i;
+    }
+  });
+
+  if (rawBins[pocIndex]) {
+    rawBins[pocIndex].isPoc = true;
+  }
+
+  // Calculate Value Area (70% of total volume centered around POC)
+  const totalProfileVolume = rawBins.reduce((acc, b) => acc + b.totalVolume, 0);
+  const targetVaVolume = totalProfileVolume * 0.7;
+  let currentVaVolume = rawBins[pocIndex]?.totalVolume || 0;
+  if (rawBins[pocIndex]) {
+    rawBins[pocIndex].isValueArea = true;
+  }
+
+  let upIdx = pocIndex + 1;
+  let downIdx = pocIndex - 1;
+  while (currentVaVolume < targetVaVolume && (upIdx < NUM_VAP_BINS || downIdx >= 0)) {
+    const upVol = upIdx < NUM_VAP_BINS ? rawBins[upIdx].totalVolume : -1;
+    const downVol = downIdx >= 0 ? rawBins[downIdx].totalVolume : -1;
+
+    if (upVol >= downVol && upIdx < NUM_VAP_BINS) {
+      rawBins[upIdx].isValueArea = true;
+      currentVaVolume += upVol;
+      upIdx++;
+    } else if (downIdx >= 0) {
+      rawBins[downIdx].isValueArea = true;
+      currentVaVolume += downVol;
+      downIdx--;
+    } else {
+      break;
+    }
+  }
+
+  const vaBins = rawBins.filter((b) => b.isValueArea);
+  const vahPrice = vaBins.length > 0 ? Math.max(...vaBins.map((b) => b.priceHigh)) : maxPrice;
+  const valPrice = vaBins.length > 0 ? Math.min(...vaBins.map((b) => b.priceLow)) : minPrice;
+  const pocBin = rawBins[pocIndex] || rawBins[0];
+  const vapMaxWidth = 135;
+  const profileRightEdge = svgWidth - padRight;
+
+  const activeVapBin = hoveredVapBin || (hoveredCandle ? rawBins.find((b) => hoveredCandle.close >= b.priceLow && hoveredCandle.close <= b.priceHigh) : null);
+
   return (
     <div className="space-y-3 font-mono text-xs" ref={containerRef}>
       {/* Top Header Controls */}
@@ -233,8 +349,20 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
             </button>
           </div>
 
-          {/* Secondary Graph Overlays (RSI Line & Volume) */}
+          {/* Secondary Graph Overlays (RSI Line, Volume & VAP Profile) */}
           <div className="flex items-center gap-1 bg-neutral-950 p-0.5 rounded border border-neutral-800 text-[10px]">
+            <button
+              onClick={() => setShowVapProfile(!showVapProfile)}
+              className={`px-2 py-0.5 rounded flex items-center gap-1.5 transition-colors ${
+                showVapProfile
+                  ? 'bg-amber-500/25 text-amber-300 font-bold border border-amber-500/40 shadow-[0_0_8px_rgba(245,158,11,0.2)]'
+                  : 'text-neutral-500 hover:text-neutral-300'
+              }`}
+              title="Toggle Horizontal Volume-at-Price Profile (Price levels with highest trading activity & Point of Control)"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              VAP PROFILE
+            </button>
             <button
               onClick={() => setShowRsiOverlay(!showRsiOverlay)}
               className={`px-2 py-0.5 rounded flex items-center gap-1.5 transition-colors ${
@@ -243,7 +371,7 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
               title="Toggle Secondary RSI Indicator Line Graph Overlaid at Bottom"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
-              RSI(14) LINE
+              RSI(14)
             </button>
             <button
               onClick={() => setShowVolumeBars(!showVolumeBars)}
@@ -268,6 +396,22 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
           <span className="text-neutral-400">C: <strong className={activeCandle.close >= activeCandle.open ? 'text-emerald-400' : 'text-rose-400'}>{activeCandle.close.toFixed(2)}</strong></span>
         </div>
         <div className="flex items-center gap-3 text-[10px]">
+          {activeVapBin ? (
+            <span className="text-amber-400/95 flex items-center gap-1.5">
+              <span>VAP @ <strong>${activeVapBin.priceMid.toFixed(2)}</strong>:</span>
+              <strong className="text-white">{(activeVapBin.totalVolume / 1000000).toFixed(2)}M</strong>
+              <span className="text-emerald-400">({activeVapBin.totalVolume > 0 ? ((activeVapBin.bullVolume / activeVapBin.totalVolume) * 100).toFixed(0) : 0}% Buy)</span>
+              {activeVapBin.isPoc && (
+                <span className="px-1 py-0.2 rounded bg-amber-500/30 text-amber-300 border border-amber-500/60 font-bold text-[8.5px]">
+                  POC (PEAK ACTIVITY)
+                </span>
+              )}
+            </span>
+          ) : (
+            <span className="text-amber-400/90 font-medium">
+              POC: <strong>${pocBin.priceMid.toFixed(2)}</strong> ({(pocBin.totalVolume / 1000000).toFixed(1)}M)
+            </span>
+          )}
           <span className="text-neutral-500">VOL: <strong className="text-neutral-300">{(activeCandle.volume / 1000000).toFixed(2)}M</strong></span>
           <span className="text-neutral-500 flex items-center gap-1.5">
             RSI(14): <strong className={activeRsiBadge.color}>{activeRsi.toFixed(1)}</strong>
@@ -359,6 +503,194 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
               strokeDasharray="2,2"
               opacity="0.6"
             />
+          )}
+
+          {/* HORIZONTAL VOLUME-AT-PRICE (VAP) PROFILE (RIGHT SIDE) */}
+          {showVapProfile && (
+            <g id="volume-at-price-profile">
+              {/* Profile Background Column Tint */}
+              <rect
+                x={profileRightEdge - vapMaxWidth - 6}
+                y={padTop}
+                width={vapMaxWidth + 6}
+                height={mainHeight - padTop - padBottom}
+                fill="#020406"
+                fillOpacity="0.45"
+                rx="2"
+              />
+              {/* Profile Left Separation Line */}
+              <line
+                x1={profileRightEdge - vapMaxWidth - 6}
+                y1={padTop}
+                x2={profileRightEdge - vapMaxWidth - 6}
+                y2={mainHeight - padBottom}
+                stroke="#1e293b"
+                strokeDasharray="2,2"
+                strokeWidth="0.8"
+                opacity="0.6"
+              />
+
+              {/* Value Area High (VAH) Reference Guideline */}
+              <line
+                x1={profileRightEdge - vapMaxWidth - 6}
+                y1={getY(vahPrice)}
+                x2={profileRightEdge}
+                y2={getY(vahPrice)}
+                stroke="#38bdf8"
+                strokeWidth="0.8"
+                strokeDasharray="2,2"
+                opacity="0.65"
+              />
+              <text
+                x={profileRightEdge - vapMaxWidth - 9}
+                y={getY(vahPrice) + 3}
+                textAnchor="end"
+                fill="#38bdf8"
+                fontSize="7"
+                fontFamily="monospace"
+              >
+                VAH ${vahPrice.toFixed(1)}
+              </text>
+
+              {/* Value Area Low (VAL) Reference Guideline */}
+              <line
+                x1={profileRightEdge - vapMaxWidth - 6}
+                y1={getY(valPrice)}
+                x2={profileRightEdge}
+                y2={getY(valPrice)}
+                stroke="#38bdf8"
+                strokeWidth="0.8"
+                strokeDasharray="2,2"
+                opacity="0.65"
+              />
+              <text
+                x={profileRightEdge - vapMaxWidth - 9}
+                y={getY(valPrice) + 3}
+                textAnchor="end"
+                fill="#38bdf8"
+                fontSize="7"
+                fontFamily="monospace"
+              >
+                VAL ${valPrice.toFixed(1)}
+              </text>
+
+              {/* Horizontal Volume Bars by Price Level */}
+              {rawBins.map((bin) => {
+                const barWidth = maxVapVolume > 0 ? (bin.totalVolume / maxVapVolume) * vapMaxWidth : 0;
+                const xStart = profileRightEdge - barWidth;
+                const y = Math.min(bin.yTop, bin.yBottom);
+                const bullWidth = bin.totalVolume > 0 ? (bin.bullVolume / bin.totalVolume) * barWidth : 0;
+                const bearWidth = Math.max(0, barWidth - bullWidth);
+                const isActive =
+                  hoveredVapBin?.index === bin.index ||
+                  (hoveredCandle && hoveredCandle.close >= bin.priceLow && hoveredCandle.close <= bin.priceHigh);
+
+                return (
+                  <g
+                    key={`vap-bar-${bin.index}`}
+                    className="cursor-pointer"
+                    onMouseEnter={() => setHoveredVapBin(bin)}
+                    onMouseLeave={() => setHoveredVapBin(null)}
+                  >
+                    {/* Bullish (Buy) Volume segment */}
+                    <rect
+                      x={xStart}
+                      y={y}
+                      width={bullWidth}
+                      height={bin.height}
+                      fill="#10b981"
+                      fillOpacity={bin.isPoc ? 0.85 : isActive ? 0.75 : bin.isValueArea ? 0.45 : 0.22}
+                      rx={0.5}
+                    />
+                    {/* Bearish (Sell) Volume segment */}
+                    <rect
+                      x={xStart + bullWidth}
+                      y={y}
+                      width={bearWidth}
+                      height={bin.height}
+                      fill="#f43f5e"
+                      fillOpacity={bin.isPoc ? 0.85 : isActive ? 0.75 : bin.isValueArea ? 0.45 : 0.22}
+                      rx={0.5}
+                    />
+
+                    {/* POC Border Highlight */}
+                    {bin.isPoc && (
+                      <rect
+                        x={xStart}
+                        y={y}
+                        width={barWidth}
+                        height={bin.height}
+                        fill="none"
+                        stroke="#f59e0b"
+                        strokeWidth="1.2"
+                        rx={0.5}
+                      />
+                    )}
+
+                    {/* Active Hover Border Outline */}
+                    {isActive && (
+                      <rect
+                        x={xStart - 1.5}
+                        y={y - 0.5}
+                        width={barWidth + 3}
+                        height={bin.height + 1}
+                        fill="none"
+                        stroke="#ffffff"
+                        strokeWidth="1"
+                        rx={1}
+                      />
+                    )}
+
+                    {/* Numeric Volume Tag on Wide Bars */}
+                    {barWidth > 38 && (
+                      <text
+                        x={xStart + 3}
+                        y={y + bin.height - 1.5}
+                        fill={bin.isPoc ? '#fbbf24' : isActive ? '#ffffff' : '#94a3b8'}
+                        fontSize="7"
+                        fontFamily="monospace"
+                        fontWeight={bin.isPoc ? 'bold' : 'normal'}
+                      >
+                        {bin.isPoc ? 'POC ' : ''}{(bin.totalVolume / 1000000).toFixed(1)}M
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+
+              {/* Full-width Point of Control (POC) Golden Dashed Reference Line across chart */}
+              <line
+                x1={padLeft}
+                y1={getY(pocBin.priceMid)}
+                x2={profileRightEdge}
+                y2={getY(pocBin.priceMid)}
+                stroke="#f59e0b"
+                strokeWidth="1.2"
+                strokeDasharray="4,3"
+                opacity="0.9"
+              />
+
+              {/* POC Tag on Right Margin */}
+              <rect
+                x={profileRightEdge + 3}
+                y={getY(pocBin.priceMid) - 7}
+                width="56"
+                height="14"
+                rx="2"
+                fill="#f59e0b"
+              />
+              <text
+                x={profileRightEdge + 31}
+                y={getY(pocBin.priceMid) + 3.5}
+                textAnchor="middle"
+                fill="#04070a"
+                fontSize="8"
+                fontFamily="monospace"
+                fontWeight="bold"
+              >
+                POC ${pocBin.priceMid.toFixed(2)}
+              </text>
+            </g>
           )}
 
           {/* Area Chart Mode */}
@@ -758,14 +1090,18 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
             <span className="w-2.5 h-0.5 border-b border-sky-400 border-dashed" /> BOLLINGER (20,2)
           </span>
           <span className="flex items-center gap-1 font-semibold text-sky-300">
-            <span className="w-2.5 h-0.5 bg-sky-400 shadow-[0_0_6px_rgba(56,189,248,0.8)]" /> RSI(14) SECONDARY LINE
+            <span className="w-2.5 h-0.5 bg-sky-400 shadow-[0_0_6px_rgba(56,189,248,0.8)]" /> RSI(14)
+          </span>
+          <span className="flex items-center gap-1 font-semibold text-amber-400">
+            <span className="w-2.5 h-1 bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.8)]" /> VAP (POC: ${pocBin.priceMid.toFixed(2)})
           </span>
           <span className="flex items-center gap-1 text-[9px] text-neutral-500">
-            (<span className="text-rose-400">70 OB</span> / <span className="text-emerald-400">30 OS</span>)
+            (VAH ${vahPrice.toFixed(1)} / VAL ${valPrice.toFixed(1)})
           </span>
         </div>
 
         <div className="flex items-center gap-3 font-mono">
+          <span>POC: <strong className="text-amber-400 font-bold">${pocBin.priceMid.toFixed(2)}</strong></span>
           <span>60S LOW: <strong className="text-white">${minPrice.toFixed(2)}</strong></span>
           <span>60S HIGH: <strong className="text-white">${maxPrice.toFixed(2)}</strong></span>
           <span>SPREAD: <strong className="text-neutral-200">${(maxPrice - minPrice).toFixed(2)}</strong></span>
