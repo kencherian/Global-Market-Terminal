@@ -828,6 +828,7 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
                 const vHeight = (c.volume / maxVolume) * (subUsableHeight * 0.7);
                 const isBull = c.close >= c.open;
                 const candleWidth = Math.max(stepX * 0.65, 2.5);
+                const isHovered = hoveredCandle?.date === c.date;
                 return (
                   <rect
                     key={`v-${c.date}`}
@@ -836,7 +837,9 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
                     width={candleWidth}
                     height={vHeight}
                     fill={isBull ? '#10b981' : '#f43f5e'}
-                    opacity={showRsiOverlay ? 0.28 : 0.65}
+                    stroke={isHovered ? '#ffffff' : 'none'}
+                    strokeWidth={isHovered ? 1.2 : 0}
+                    opacity={isHovered ? 1 : showRsiOverlay ? 0.28 : 0.65}
                   />
                 );
               })}
@@ -1063,7 +1066,10 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
             const rsiBadgeColor =
               rsiVal >= 70 ? '#f43f5e' : rsiVal <= 30 ? '#10b981' : '#0284c7';
 
-            const bottomCrosshairY = showRsiOverlay ? subBottom : mainHeight;
+            // Vertical guide line extends fully through the main chart AND through the entire volume sub-panel
+            const bottomCrosshairY = subBottom;
+            const volHeight = (hoveredCandle.volume / maxVolume) * (subUsableHeight * 0.7);
+            const yVolTop = subBottom - volHeight;
 
             // Timestamp badge coordinates (at bottom of chart)
             const timeBadgeW = 86;
@@ -1097,20 +1103,65 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
 
             return (
               <g id="dynamic-cursor-crosshair" pointerEvents="none" className="select-none">
-                {/* Vertical Cursor Guide Line spanning price & RSI chart */}
+                {/* Vertical Cursor Guide Line extending fully through price chart and volume sub-panel */}
                 <line
                   x1={x}
                   y1={padTop}
                   x2={x}
                   y2={bottomCrosshairY}
                   stroke="#38bdf8"
-                  strokeWidth="1"
+                  strokeWidth="2.5"
+                  opacity="0.18"
+                />
+                <line
+                  x1={x}
+                  y1={padTop}
+                  x2={x}
+                  y2={bottomCrosshairY}
+                  stroke="#38bdf8"
+                  strokeWidth="1.2"
                   strokeDasharray="3,2"
-                  opacity="0.85"
+                  opacity="0.9"
                 />
 
                 {/* Vertical Line Head Marker */}
                 <circle cx={x} cy={padTop} r="2" fill="#38bdf8" />
+
+                {/* Sub-panel Divider Intersection Marker */}
+                <circle cx={x} cy={mainHeight} r="2" fill="#38bdf8" opacity="0.8" />
+
+                {/* Volume Sub-Panel Alignment Marker on the Vertical Guide Line */}
+                {showVolumeBars && (
+                  <g id="crosshair-volume-alignment">
+                    {/* Horizontal pip aligned with top of volume bar */}
+                    <line
+                      x1={x - 6}
+                      y1={yVolTop}
+                      x2={x + 6}
+                      y2={yVolTop}
+                      stroke="#ffffff"
+                      strokeWidth="1.5"
+                    />
+                    {/* Target dot at top of active volume bar */}
+                    <circle
+                      cx={x}
+                      cy={yVolTop}
+                      r="5"
+                      fill={priceColor}
+                      fillOpacity="0.35"
+                      stroke={priceColor}
+                      strokeWidth="1.2"
+                    />
+                    <circle
+                      cx={x}
+                      cy={yVolTop}
+                      r="2"
+                      fill="#ffffff"
+                      stroke={priceColor}
+                      strokeWidth="1"
+                    />
+                  </g>
+                )}
 
                 {/* Horizontal Price Crosshair Line */}
                 <line

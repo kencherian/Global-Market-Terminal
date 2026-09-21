@@ -620,12 +620,29 @@ function generateStandaloneHtml(
         const pColor = isBull ? '#10b981' : '#ef4444';
         const rsiVal = c.rsi || 50;
         const yRsi = subTop + (1 - rsiVal / 100) * subHeight;
+        const maxVol = Math.max(...AAPL_DATA.map(d => d.volume || 40000000));
+        const vHeight = ((c.volume || 40000000) / maxVol) * (subHeight * 0.7);
+        const yVolTop = subBottom - vHeight;
         const timeBadgeX = Math.max(padLeft, Math.min(width - padRight - 66, x - 33));
 
         crosshairG.innerHTML = \`
-          <line x1="\${x}" y1="10" x2="\${x}" y2="\${subBottom}" stroke="#38bdf8" stroke-width="1" stroke-dasharray="3,2" opacity="0.85"/>
+          <!-- Vertical guide line extending fully through main chart and volume sub-panel -->
+          <line x1="\${x}" y1="10" x2="\${x}" y2="\${subBottom}" stroke="#38bdf8" stroke-width="2.5" opacity="0.18"/>
+          <line x1="\${x}" y1="10" x2="\${x}" y2="\${subBottom}" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="3,2" opacity="0.9"/>
+          <circle cx="\${x}" cy="10" r="2" fill="#38bdf8"/>
+          <circle cx="\${x}" cy="\${mainHeight}" r="2" fill="#38bdf8" opacity="0.8"/>
+
+          <!-- Volume Sub-Panel Alignment Marker -->
+          <line x1="\${x - 6}" y1="\${yVolTop}" x2="\${x + 6}" y2="\${yVolTop}" stroke="#ffffff" stroke-width="1.5"/>
+          <circle cx="\${x}" cy="\${yVolTop}" r="4.5" fill="\${pColor}" fill-opacity="0.35" stroke="\${pColor}" stroke-width="1.2"/>
+          <circle cx="\${x}" cy="\${yVolTop}" r="2" fill="#ffffff" stroke="\${pColor}" stroke-width="1"/>
+
+          <!-- Price Crosshair Line & Target -->
           <line x1="\${padLeft}" y1="\${yPrice}" x2="\${width - padRight}" y2="\${yPrice}" stroke="\${pColor}" stroke-width="1" stroke-dasharray="3,2" opacity="0.85"/>
           <circle cx="\${x}" cy="\${yPrice}" r="5" fill="\${pColor}" fill-opacity="0.3" stroke="\${pColor}" stroke-width="1.2"/>
+          <circle cx="\${x}" cy="\${yPrice}" r="2" fill="#ffffff" stroke="\${pColor}" stroke-width="1"/>
+
+          <!-- RSI Crosshair Line & Target -->
           <line x1="\${padLeft}" y1="\${yRsi}" x2="\${width - padRight}" y2="\${yRsi}" stroke="#38bdf8" stroke-width="1" stroke-dasharray="3,2" opacity="0.85"/>
           <circle cx="\${x}" cy="\${yRsi}" r="4" fill="#38bdf8" fill-opacity="0.3" stroke="#38bdf8" stroke-width="1.2"/>
 
@@ -642,7 +659,7 @@ function generateStandaloneHtml(
           <text x="\${timeBadgeX + 33}" y="\${subBottom + 11.5}" text-anchor="middle" fill="#38bdf8" font-size="7.5" font-family="monospace" font-weight="bold">\${c.date}</text>
         \`;
 
-        el.textContent = \`\${c.date} | $\${c.close.toFixed(2)} | RSI \${rsiVal.toFixed(1)}\`;
+        el.textContent = \`\${c.date} | $\${c.close.toFixed(2)} | VOL \${((c.volume || 0)/1000000).toFixed(1)}M | RSI \${rsiVal.toFixed(1)}\`;
         el.className = isBull ? 'green' : 'red';
       });
 
