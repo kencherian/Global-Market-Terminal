@@ -39,6 +39,7 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
   const [showRsiOverlay, setShowRsiOverlay] = useState(true);
   const [showVolumeBars, setShowVolumeBars] = useState(true);
   const [showVapProfile, setShowVapProfile] = useState(true);
+  const [showCrosshair, setShowCrosshair] = useState(true);
   const [hoveredCandle, setHoveredCandle] = useState<CandleData | null>(null);
   const [hoveredVapBin, setHoveredVapBin] = useState<VapBin | null>(null);
 
@@ -382,6 +383,18 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
             >
               VOL
             </button>
+            <button
+              onClick={() => setShowCrosshair(!showCrosshair)}
+              className={`px-2 py-0.5 rounded flex items-center gap-1.5 transition-colors ${
+                showCrosshair
+                  ? 'bg-cyan-500/25 text-cyan-300 font-bold border border-cyan-500/40 shadow-[0_0_8px_rgba(6,182,212,0.2)]'
+                  : 'text-neutral-500 hover:text-neutral-300'
+              }`}
+              title="Toggle Dynamic Cursor Crosshair (Highlights exact Price, RSI, and Timestamp)"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+              CROSSHAIR
+            </button>
           </div>
         </div>
       </div>
@@ -425,7 +438,7 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
       {/* SVG Canvas Area */}
       <div className="relative w-full bg-[#05090c] rounded border border-neutral-800/80 overflow-hidden">
         <svg
-          viewBox={`0 0 ${svgWidth} ${subBottom + 12}`}
+          viewBox={`0 0 ${svgWidth} ${subBottom + 24}`}
           className="w-full h-auto select-none"
           style={{ minHeight: '320px' }}
         >
@@ -1034,23 +1047,320 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
             )}
           </g>
 
-          {/* Synchronized Vertical Crosshair spanning both Price & Bottom RSI Chart */}
-          {hoveredCandle && (() => {
+          {/* Dynamic Cursor Crosshair with exact Price, RSI, and Timestamp highlights */}
+          {showCrosshair && hoveredCandle && (() => {
             const hoveredIdx = candles.findIndex((c) => c.date === hoveredCandle.date);
             if (hoveredIdx < 0) return null;
+
             const x = padLeft + hoveredIdx * stepX + stepX / 2;
+            const yPrice = getY(hoveredCandle.close);
+            const isBull = hoveredCandle.close >= hoveredCandle.open;
+            const priceColor = isBull ? '#10b981' : '#f43f5e';
+            const priceBg = isBull ? '#059669' : '#e11d48';
+            const rsiVal = hoveredCandle.rsi ?? 50;
+            const yRsi = getRsiY(rsiVal);
+
+            const rsiBadgeColor =
+              rsiVal >= 70 ? '#f43f5e' : rsiVal <= 30 ? '#10b981' : '#0284c7';
+
+            const bottomCrosshairY = showRsiOverlay ? subBottom : mainHeight;
+
+            // Timestamp badge coordinates (at bottom of chart)
+            const timeBadgeW = 86;
+            const timeBadgeH = 16;
+            const timeBadgeX = Math.max(
+              padLeft,
+              Math.min(svgWidth - padRight - timeBadgeW, x - timeBadgeW / 2)
+            );
+            const timeBadgeY = bottomCrosshairY + 3;
+
+            // Price badge coordinates (on right axis)
+            const priceBadgeW = 58;
+            const priceBadgeH = 16;
+            const priceBadgeX = svgWidth - padRight + 2;
+            const priceBadgeY = Math.max(padTop, Math.min(mainHeight - priceBadgeH, yPrice - priceBadgeH / 2));
+
+            // RSI badge coordinates (on secondary chart right axis)
+            const rsiBadgeW = 58;
+            const rsiBadgeH = 16;
+            const rsiBadgeX = svgWidth - padRight + 2;
+            const rsiBadgeY = Math.max(subTop, Math.min(subBottom - rsiBadgeH, yRsi - rsiBadgeH / 2));
+
+            // Floating terminal inspection tooltip box
+            const tooltipW = 168;
+            const tooltipH = 84;
+            const tooltipOnLeft = x > (usableWidth / 2) + padLeft;
+            const tooltipX = tooltipOnLeft ? x - tooltipW - 14 : x + 14;
+            const tooltipY = Math.max(padTop + 4, Math.min(mainHeight - tooltipH - 4, yPrice - tooltipH / 2));
+            const priceDiff = hoveredCandle.close - hoveredCandle.open;
+            const priceDiffPct = hoveredCandle.open > 0 ? (priceDiff / hoveredCandle.open) * 100 : 0;
+
             return (
-              <line
-                x1={x}
-                y1={padTop}
-                x2={x}
-                y2={subBottom}
-                stroke="#94a3b8"
-                strokeWidth="0.8"
-                strokeDasharray="2,2"
-                opacity="0.6"
-                pointerEvents="none"
-              />
+              <g id="dynamic-cursor-crosshair" pointerEvents="none" className="select-none">
+                {/* Vertical Cursor Guide Line spanning price & RSI chart */}
+                <line
+                  x1={x}
+                  y1={padTop}
+                  x2={x}
+                  y2={bottomCrosshairY}
+                  stroke="#38bdf8"
+                  strokeWidth="1"
+                  strokeDasharray="3,2"
+                  opacity="0.85"
+                />
+
+                {/* Vertical Line Head Marker */}
+                <circle cx={x} cy={padTop} r="2" fill="#38bdf8" />
+
+                {/* Horizontal Price Crosshair Line */}
+                <line
+                  x1={padLeft}
+                  y1={yPrice}
+                  x2={svgWidth - padRight}
+                  y2={yPrice}
+                  stroke={priceColor}
+                  strokeWidth="1"
+                  strokeDasharray="3,2"
+                  opacity="0.85"
+                />
+
+                {/* Candlestick Target Crosshair Intersection Indicator */}
+                <circle
+                  cx={x}
+                  cy={yPrice}
+                  r="7"
+                  fill={priceColor}
+                  fillOpacity="0.2"
+                  stroke={priceColor}
+                  strokeWidth="1.2"
+                />
+                <circle
+                  cx={x}
+                  cy={yPrice}
+                  r="2.5"
+                  fill="#ffffff"
+                  stroke={priceColor}
+                  strokeWidth="1"
+                />
+
+                {/* Horizontal RSI Crosshair Line (when RSI overlay enabled) */}
+                {showRsiOverlay && (
+                  <>
+                    <line
+                      x1={padLeft}
+                      y1={yRsi}
+                      x2={svgWidth - padRight}
+                      y2={yRsi}
+                      stroke="#38bdf8"
+                      strokeWidth="1"
+                      strokeDasharray="3,2"
+                      opacity="0.85"
+                    />
+                    {/* RSI Target Intersection Indicator */}
+                    <circle
+                      cx={x}
+                      cy={yRsi}
+                      r="6"
+                      fill="#38bdf8"
+                      fillOpacity="0.25"
+                      stroke="#38bdf8"
+                      strokeWidth="1.2"
+                    />
+                    <circle
+                      cx={x}
+                      cy={yRsi}
+                      r="2"
+                      fill="#ffffff"
+                      stroke="#0284c7"
+                      strokeWidth="1"
+                    />
+                  </>
+                )}
+
+                {/* 1. EXACT PRICE BADGE (Right Y-Axis Highlight) */}
+                <g id="crosshair-price-badge">
+                  {/* Left-pointing pointer arrow */}
+                  <polygon
+                    points={`${priceBadgeX},${yPrice} ${priceBadgeX + 5},${yPrice - 4} ${priceBadgeX + 5},${yPrice + 4}`}
+                    fill={priceBg}
+                  />
+                  {/* Badge container rect */}
+                  <rect
+                    x={priceBadgeX + 4}
+                    y={priceBadgeY}
+                    width={priceBadgeW}
+                    height={priceBadgeH}
+                    rx="2"
+                    fill={priceBg}
+                    stroke="#ffffff"
+                    strokeWidth="0.5"
+                    strokeOpacity="0.3"
+                  />
+                  {/* Price Text */}
+                  <text
+                    x={priceBadgeX + 4 + priceBadgeW / 2}
+                    y={priceBadgeY + 11}
+                    textAnchor="middle"
+                    fill="#ffffff"
+                    fontSize="9"
+                    fontFamily="monospace"
+                    fontWeight="bold"
+                  >
+                    ${hoveredCandle.close.toFixed(2)}
+                  </text>
+                </g>
+
+                {/* 2. EXACT RSI BADGE (Secondary Graph Right Y-Axis Highlight) */}
+                {showRsiOverlay && (
+                  <g id="crosshair-rsi-badge">
+                    {/* Left-pointing pointer arrow */}
+                    <polygon
+                      points={`${rsiBadgeX},${yRsi} ${rsiBadgeX + 5},${yRsi - 4} ${rsiBadgeX + 5},${yRsi + 4}`}
+                      fill={rsiBadgeColor}
+                    />
+                    {/* Badge container rect */}
+                    <rect
+                      x={rsiBadgeX + 4}
+                      y={rsiBadgeY}
+                      width={rsiBadgeW}
+                      height={rsiBadgeH}
+                      rx="2"
+                      fill={rsiBadgeColor}
+                      stroke="#ffffff"
+                      strokeWidth="0.5"
+                      strokeOpacity="0.3"
+                    />
+                    {/* RSI Text */}
+                    <text
+                      x={rsiBadgeX + 4 + rsiBadgeW / 2}
+                      y={rsiBadgeY + 11}
+                      textAnchor="middle"
+                      fill="#ffffff"
+                      fontSize="9"
+                      fontFamily="monospace"
+                      fontWeight="bold"
+                    >
+                      RSI {rsiVal.toFixed(1)}
+                    </text>
+                  </g>
+                )}
+
+                {/* 3. TIMESTAMP BADGE (Bottom X-Axis Highlight) */}
+                <g id="crosshair-timestamp-badge">
+                  {/* Up-pointing arrow marker */}
+                  <polygon
+                    points={`${x},${bottomCrosshairY + 1} ${x - 4},${timeBadgeY} ${x + 4},${timeBadgeY}`}
+                    fill="#0284c7"
+                  />
+                  {/* Badge container rect */}
+                  <rect
+                    x={timeBadgeX}
+                    y={timeBadgeY}
+                    width={timeBadgeW}
+                    height={timeBadgeH}
+                    rx="2.5"
+                    fill="#090d16"
+                    stroke="#0284c7"
+                    strokeWidth="1"
+                  />
+                  {/* Timestamp Text */}
+                  <text
+                    x={timeBadgeX + timeBadgeW / 2}
+                    y={timeBadgeY + 11}
+                    textAnchor="middle"
+                    fill="#38bdf8"
+                    fontSize="8.5"
+                    fontFamily="monospace"
+                    fontWeight="bold"
+                  >
+                    {hoveredCandle.date}
+                  </text>
+                </g>
+
+                {/* 4. DYNAMIC FLOATING HUD CARD */}
+                <g id="crosshair-hud-card" opacity="0.95">
+                  <rect
+                    x={tooltipX}
+                    y={tooltipY}
+                    width={tooltipW}
+                    height={tooltipH}
+                    rx="3"
+                    fill="#050811"
+                    stroke="#1e293b"
+                    strokeWidth="1.2"
+                  />
+                  {/* Top accent bar matching price sentiment */}
+                  <rect
+                    x={tooltipX}
+                    y={tooltipY}
+                    width={tooltipW}
+                    height="2"
+                    fill={priceColor}
+                    rx="1"
+                  />
+
+                  {/* Header Row: Timestamp & Session */}
+                  <text
+                    x={tooltipX + 7}
+                    y={tooltipY + 14}
+                    fill="#94a3b8"
+                    fontSize="8"
+                    fontFamily="monospace"
+                  >
+                    TIME: <tspan fill="#f1f5f9" fontWeight="bold">{hoveredCandle.date}</tspan> (S#{hoveredCandle.sessionIndex})
+                  </text>
+
+                  {/* Row 2: Price & Change */}
+                  <text
+                    x={tooltipX + 7}
+                    y={tooltipY + 28}
+                    fill="#94a3b8"
+                    fontSize="8"
+                    fontFamily="monospace"
+                  >
+                    PRICE: <tspan fill={priceColor} fontWeight="bold">${hoveredCandle.close.toFixed(2)}</tspan>{' '}
+                    <tspan fill={priceColor} fontSize="7.5">
+                      ({priceDiff >= 0 ? '+' : ''}{priceDiff.toFixed(2)} / {priceDiffPct >= 0 ? '+' : ''}{priceDiffPct.toFixed(2)}%)
+                    </tspan>
+                  </text>
+
+                  {/* Row 3: OHLC */}
+                  <text
+                    x={tooltipX + 7}
+                    y={tooltipY + 42}
+                    fill="#64748b"
+                    fontSize="7.5"
+                    fontFamily="monospace"
+                  >
+                    O:{hoveredCandle.open.toFixed(1)} H:{hoveredCandle.high.toFixed(1)} L:{hoveredCandle.low.toFixed(1)}
+                  </text>
+
+                  {/* Row 4: RSI Indicator */}
+                  <text
+                    x={tooltipX + 7}
+                    y={tooltipY + 56}
+                    fill="#94a3b8"
+                    fontSize="8"
+                    fontFamily="monospace"
+                  >
+                    RSI(14): <tspan fill={rsiBadgeColor} fontWeight="bold">{rsiVal.toFixed(1)}</tspan>{' '}
+                    <tspan fill="#64748b" fontSize="7.5">
+                      ({rsiVal >= 70 ? 'OVERBOUGHT' : rsiVal <= 30 ? 'OVERSOLD' : 'NEUTRAL'})
+                    </tspan>
+                  </text>
+
+                  {/* Row 5: Volume */}
+                  <text
+                    x={tooltipX + 7}
+                    y={tooltipY + 70}
+                    fill="#94a3b8"
+                    fontSize="8"
+                    fontFamily="monospace"
+                  >
+                    VOLUME: <tspan fill="#e2e8f0" fontWeight="bold">{(hoveredCandle.volume / 1000000).toFixed(2)}M</tspan>
+                  </text>
+                </g>
+              </g>
             );
           })()}
 
@@ -1063,10 +1373,11 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
                 x={x}
                 y={0}
                 width={stepX}
-                height={subBottom + 8}
+                height={subBottom + 24}
                 fill="transparent"
                 className="cursor-crosshair hover:fill-white/5 transition-colors"
                 onMouseEnter={() => setHoveredCandle(c)}
+                onMouseMove={() => setHoveredCandle(c)}
                 onMouseLeave={() => setHoveredCandle(null)}
               />
             );

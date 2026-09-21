@@ -586,6 +586,7 @@ function generateStandaloneHtml(
         <circle cx="\${lastX}" cy="\${lastY}" r="3" fill="#38bdf8" stroke="#04070a" stroke-width="1.5"/>
         <rect x="\${width - padRight + 4}" y="\${Math.max(subTop, Math.min(subBottom - 13, lastY - 6))}" width="34" height="13" rx="2" fill="#0284c7"/>
         <text x="\${width - padRight + 21}" y="\${Math.max(subTop, Math.min(subBottom - 13, lastY - 6)) + 9.5}" text-anchor="middle" fill="#030708" font-size="8" font-family="monospace" font-weight="bold">\${lastRsi.toFixed(1)}</text>
+        <g id="offline-crosshair" pointer-events="none"></g>
       \`;
 
       const last = AAPL_DATA[AAPL_DATA.length - 1];
@@ -593,8 +594,59 @@ function generateStandaloneHtml(
       const diff = last.close - prev.close;
       const diffPct = (diff / prev.close) * 100;
       const el = document.getElementById('aapl-latest');
-      el.textContent = \`$\${last.close.toFixed(2)} (\${diff >= 0 ? '+' : ''}\${diffPct.toFixed(2)}%) | POC $\${pocBin.priceMid.toFixed(1)} | RSI \${lastRsi.toFixed(1)}\`;
-      el.className = diff >= 0 ? 'green' : 'red';
+      const resetLatest = () => {
+        el.textContent = \`$\${last.close.toFixed(2)} (\${diff >= 0 ? '+' : ''}\${diffPct.toFixed(2)}%) | POC $\${pocBin.priceMid.toFixed(1)} | RSI \${lastRsi.toFixed(1)}\`;
+        el.className = diff >= 0 ? 'green' : 'red';
+        const crosshairG = document.getElementById('offline-crosshair');
+        if (crosshairG) crosshairG.innerHTML = '';
+      };
+      resetLatest();
+
+      svg.addEventListener('mousemove', (e) => {
+        const rect = svg.getBoundingClientRect();
+        const mouseX = ((e.clientX - rect.left) / rect.width) * width;
+        if (mouseX < padLeft || mouseX > width - padRight) {
+          resetLatest();
+          return;
+        }
+        const idx = Math.max(0, Math.min(AAPL_DATA.length - 1, Math.floor((mouseX - padLeft) / stepX)));
+        const c = AAPL_DATA[idx];
+        const crosshairG = document.getElementById('offline-crosshair');
+        if (!c || !crosshairG) return;
+
+        const x = padLeft + idx * stepX + stepX / 2;
+        const yPrice = getY(c.close);
+        const isBull = c.close >= c.open;
+        const pColor = isBull ? '#10b981' : '#ef4444';
+        const rsiVal = c.rsi || 50;
+        const yRsi = subTop + (1 - rsiVal / 100) * subHeight;
+        const timeBadgeX = Math.max(padLeft, Math.min(width - padRight - 66, x - 33));
+
+        crosshairG.innerHTML = \`
+          <line x1="\${x}" y1="10" x2="\${x}" y2="\${subBottom}" stroke="#38bdf8" stroke-width="1" stroke-dasharray="3,2" opacity="0.85"/>
+          <line x1="\${padLeft}" y1="\${yPrice}" x2="\${width - padRight}" y2="\${yPrice}" stroke="\${pColor}" stroke-width="1" stroke-dasharray="3,2" opacity="0.85"/>
+          <circle cx="\${x}" cy="\${yPrice}" r="5" fill="\${pColor}" fill-opacity="0.3" stroke="\${pColor}" stroke-width="1.2"/>
+          <line x1="\${padLeft}" y1="\${yRsi}" x2="\${width - padRight}" y2="\${yRsi}" stroke="#38bdf8" stroke-width="1" stroke-dasharray="3,2" opacity="0.85"/>
+          <circle cx="\${x}" cy="\${yRsi}" r="4" fill="#38bdf8" fill-opacity="0.3" stroke="#38bdf8" stroke-width="1.2"/>
+
+          <!-- Exact Price Badge -->
+          <rect x="\${width - padRight + 3}" y="\${yPrice - 7}" width="46" height="14" rx="2" fill="\${pColor}"/>
+          <text x="\${width - padRight + 26}" y="\${yPrice + 3.5}" text-anchor="middle" fill="#ffffff" font-size="8" font-family="monospace" font-weight="bold">$\${c.close.toFixed(2)}</text>
+
+          <!-- Exact RSI Badge -->
+          <rect x="\${width - padRight + 3}" y="\${yRsi - 7}" width="46" height="14" rx="2" fill="#0284c7"/>
+          <text x="\${width - padRight + 26}" y="\${yRsi + 3.5}" text-anchor="middle" fill="#ffffff" font-size="8" font-family="monospace" font-weight="bold">RSI \${rsiVal.toFixed(1)}</text>
+
+          <!-- Exact Timestamp Badge -->
+          <rect x="\${timeBadgeX}" y="\${subBottom + 2}" width="66" height="13" rx="2" fill="#0f172a" stroke="#0284c7" stroke-width="1"/>
+          <text x="\${timeBadgeX + 33}" y="\${subBottom + 11.5}" text-anchor="middle" fill="#38bdf8" font-size="7.5" font-family="monospace" font-weight="bold">\${c.date}</text>
+        \`;
+
+        el.textContent = \`\${c.date} | $\${c.close.toFixed(2)} | RSI \${rsiVal.toFixed(1)}\`;
+        el.className = isBull ? 'green' : 'red';
+      });
+
+      svg.addEventListener('mouseleave', resetLatest);
     }
 
     // Initialize
