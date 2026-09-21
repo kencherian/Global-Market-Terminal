@@ -1,0 +1,6 @@
+{
+  "name": "Global Market Terminal Dashboard",
+  "description": "Terminal-style drag-and-drop canvas dashboard for global market monitoring, featuring AAPL 60-session charts, sector heatmaps, world session clocks, indices, and precious metals.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

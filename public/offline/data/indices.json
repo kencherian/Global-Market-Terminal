@@ -1,0 +1,200 @@
+[
+  {
+    "symbol": "SPX",
+    "name": "S&P 500",
+    "region": "Americas",
+    "price": 5894.25,
+    "change": 32.8,
+    "changePercent": 0.56,
+    "dayHigh": 5908.12,
+    "dayLow": 5854.4,
+    "volume": "2.84B",
+    "currency": "USD",
+    "lastUpdated": "16:00:02 EDT",
+    "sparkline": [
+      5860,
+      5854,
+      5872,
+      5868,
+      5885,
+      5879,
+      5894
+    ]
+  },
+  {
+    "symbol": "NDX",
+    "name": "NASDAQ 100",
+    "region": "Americas",
+    "price": 20612.4,
+    "change": 184.6,
+    "changePercent": 0.9,
+    "dayHigh": 20680.1,
+    "dayLow": 20450.3,
+    "volume": "4.12B",
+    "currency": "USD",
+    "lastUpdated": "16:00:00 EDT",
+    "sparkline": [
+      20450,
+      20480,
+      20520,
+      20510,
+      20590,
+      20570,
+      20612
+    ]
+  },
+  {
+    "symbol": "DJI",
+    "name": "Dow Jones 30",
+    "region": "Americas",
+    "price": 43245.8,
+    "change": -74.2,
+    "changePercent": -0.17,
+    "dayHigh": 43380,
+    "dayLow": 43190.5,
+    "volume": "345M",
+    "currency": "USD",
+    "lastUpdated": "16:00:00 EDT",
+    "sparkline": [
+      43320,
+      43350,
+      43290,
+      43310,
+      43210,
+      43260,
+      43245
+    ]
+  },
+  {
+    "symbol": "FTSE",
+    "name": "FTSE 100",
+    "region": "Europe",
+    "price": 8295.1,
+    "change": 28.45,
+    "changePercent": 0.34,
+    "dayHigh": 8312.2,
+    "dayLow": 8264,
+    "volume": "780M",
+    "currency": "GBP",
+    "lastUpdated": "16:35:00 BST",
+    "sparkline": [
+      8265,
+      8274,
+      8290,
+      8282,
+      8305,
+      8290,
+      8295
+    ]
+  },
+  {
+    "symbol": "DAX",
+    "name": "DAX 40",
+    "region": "Europe",
+    "price": 19488.6,
+    "change": 112.3,
+    "changePercent": 0.58,
+    "dayHigh": 19524,
+    "dayLow": 19390.1,
+    "volume": "640M",
+    "currency": "EUR",
+    "lastUpdated": "17:30:00 CEST",
+    "sparkline": [
+      19390,
+      19410,
+      19445,
+      19430,
+      19495,
+      19470,
+      19488
+    ]
+  },
+  {
+    "symbol": "N225",
+    "name": "Nikkei 225",
+    "region": "Asia-Pacific",
+    "price": 39180.3,
+    "change": -210.5,
+    "changePercent": -0.53,
+    "dayHigh": 39420,
+    "dayLow": 39050.8,
+    "volume": "1.2B",
+    "currency": "JPY",
+    "lastUpdated": "15:00:00 JST",
+    "sparkline": [
+      39390,
+      39320,
+      39210,
+      39280,
+      39100,
+      39140,
+      39180
+    ]
+  },
+  {
+    "symbol": "HSI",
+    "name": "Hang Seng",
+    "region": "Asia-Pacific",
+    "price": 20724.9,
+    "change": 362.15,
+    "changePercent": 1.78,
+    "dayHigh": 20850,
+    "dayLow": 20410,
+    "volume": "2.1B",
+    "currency": "HKD",
+    "lastUpdated": "16:00:00 HKT",
+    "sparkline": [
+      20420,
+      20510,
+      20640,
+      20590,
+      20780,
+      20700,
+      20724
+    ]
+  },
+  {
+    "symbol": "SHCOMP",
+    "name": "Shanghai Composite",
+    "region": "Asia-Pacific",
+    "price": 3345.2,
+    "change": 22.8,
+    "changePercent": 0.69,
+    "dayHigh": 3360.5,
+    "dayLow": 3318,
+    "volume": "4.8B",
+    "currency": "CNY",
+    "lastUpdated": "15:00:00 CST",
+    "sparkline": [
+      3320,
+      3328,
+      3340,
+      3335,
+      3352,
+      3341,
+      3345
+    ]
+  },
+  {
+    "symbol": "NIFTY",
+    "name": "Nifty 50",
+    "region": "Asia-Pacific",
+    "price": 25114.8,
+    "change": 89.2,
+    "changePercent": 0.36,
+    "dayHigh": 25180,
+    "dayLow": 24995,
+    "volume": "490M",
+    "currency": "INR",
+    "lastUpdated": "15:30:00 IST",
+    "sparkline": [
+      25020,
+      25050,
+      25090,
+      25070,
+      25140,
+      25100,
+      25114
+    ]
+  }
+]
