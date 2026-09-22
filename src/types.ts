@@ -42,6 +42,7 @@ export interface CandleData {
   upperBand?: number;
   lowerBand?: number;
   rsi?: number;
+  volMa20?: number;
 }
 
 export interface CommodityMetal {

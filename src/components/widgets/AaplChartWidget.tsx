@@ -38,6 +38,7 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
   const [showBands, setShowBands] = useState(true);
   const [showRsiOverlay, setShowRsiOverlay] = useState(true);
   const [showVolumeBars, setShowVolumeBars] = useState(true);
+  const [showVolSMA20, setShowVolSMA20] = useState(true);
   const [showVapProfile, setShowVapProfile] = useState(true);
   const [showCrosshair, setShowCrosshair] = useState(true);
   const [hoveredCandle, setHoveredCandle] = useState<CandleData | null>(null);
@@ -141,8 +142,27 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
     rsiAreaCoords.push(`${lastX.toFixed(1)},${subBottom}`);
   }
 
+  // Build Volume SMA 20 (Simple Moving Average 20) Points & Coordinates
+  const volSma20Points: { x: number; y: number; val: number; date: string }[] = [];
+  const volSma20PolylineCoords: string[] = [];
+  const volWindow = Math.min(20, candles.length);
+
+  candles.forEach((c, i) => {
+    if (i >= volWindow - 1) {
+      const slice = candles.slice(i - volWindow + 1, i + 1);
+      const avgVol = c.volMa20 ?? (slice.reduce((acc, item) => acc + item.volume, 0) / volWindow);
+      const x = padLeft + i * stepX + stepX / 2;
+      const vHeight = maxVolume > 0 ? (avgVol / maxVolume) * maxMainVolHeight : 0;
+      const y = mainPanelBaseline - vHeight;
+      volSma20Points.push({ x, y, val: avgVol, date: c.date });
+      volSma20PolylineCoords.push(`${x.toFixed(1)},${y.toFixed(1)}`);
+    }
+  });
+
   const activeCandle = hoveredCandle || latest;
   const activeRsi = activeCandle.rsi ?? 50;
+  const activeVolSmaObj = volSma20Points.find((p) => p.date === activeCandle.date);
+  const activeVolSma = activeVolSmaObj?.val ?? null;
 
   const getRsiStateBadge = (val: number) => {
     if (val >= 70) {
@@ -387,6 +407,18 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
               VOL
             </button>
             <button
+              onClick={() => setShowVolSMA20(!showVolSMA20)}
+              className={`px-2 py-0.5 rounded flex items-center gap-1.5 transition-colors ${
+                showVolSMA20 && showVolumeBars
+                  ? 'bg-amber-500/25 text-amber-300 font-bold border border-amber-500/40 shadow-[0_0_8px_rgba(245,158,11,0.2)]'
+                  : 'text-neutral-500 hover:text-neutral-300'
+              }`}
+              title="Toggle Volume Simple Moving Average (SMA 20) line overlay on volume histogram"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              VOL SMA(20)
+            </button>
+            <button
               onClick={() => setShowCrosshair(!showCrosshair)}
               className={`px-2 py-0.5 rounded flex items-center gap-1.5 transition-colors ${
                 showCrosshair
@@ -429,6 +461,23 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
             </span>
           )}
           <span className="text-neutral-500">VOL: <strong className="text-neutral-300">{(activeCandle.volume / 1000000).toFixed(2)}M</strong></span>
+          {showVolSMA20 && activeVolSma && (
+            <span className="text-neutral-500 flex items-center gap-1">
+              VOL SMA(20):{' '}
+              <strong className={activeCandle.volume >= activeVolSma ? 'text-amber-300' : 'text-amber-400/80'}>
+                {(activeVolSma / 1000000).toFixed(2)}M
+              </strong>
+              <span
+                className={`text-[8.5px] px-1 py-0.2 rounded font-semibold ${
+                  activeCandle.volume >= activeVolSma
+                    ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-800'
+                    : 'bg-rose-950/60 text-rose-300 border border-rose-800'
+                }`}
+              >
+                {activeCandle.volume >= activeVolSma ? 'SURGE' : 'QUIET'}
+              </span>
+            </span>
+          )}
           <span className="text-neutral-500 flex items-center gap-1.5">
             RSI(14): <strong className={activeRsiBadge.color}>{activeRsi.toFixed(1)}</strong>
             <span className={`text-[8.5px] px-1 py-0.2 rounded border font-semibold ${activeRsiBadge.bg}`}>
@@ -735,6 +784,44 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
                 VOL HISTOGRAM (PEAK {(maxVolume / 1000000).toFixed(1)}M)
               </text>
 
+              {/* Volume SMA 20 Legend & Trend Indicator */}
+              {showVolSMA20 && activeVolSma && (
+                <g id="vol-sma20-legend">
+                  <line
+                    x1={padLeft + 194}
+                    y1={mainPanelBaseline - maxMainVolHeight - 5}
+                    x2={padLeft + 208}
+                    y2={mainPanelBaseline - maxMainVolHeight - 5}
+                    stroke="#fbbf24"
+                    strokeWidth="1.8"
+                  />
+                  <circle
+                    cx={padLeft + 201}
+                    cy={mainPanelBaseline - maxMainVolHeight - 5}
+                    r="1.8"
+                    fill="#ffffff"
+                    stroke="#f59e0b"
+                    strokeWidth="0.8"
+                  />
+                  <text
+                    x={padLeft + 212}
+                    y={mainPanelBaseline - maxMainVolHeight - 3}
+                    fill="#fbbf24"
+                    fontSize="7.5"
+                    fontFamily="monospace"
+                    fontWeight="bold"
+                    letterSpacing="0.05em"
+                  >
+                    SMA(20): {(activeVolSma / 1000000).toFixed(2)}M
+                    {activeCandle.volume >= activeVolSma ? (
+                      <tspan fill="#10b981"> (+{(((activeCandle.volume - activeVolSma) / activeVolSma) * 100).toFixed(0)}% SURGE)</tspan>
+                    ) : (
+                      <tspan fill="#f43f5e"> ({(((activeCandle.volume - activeVolSma) / activeVolSma) * 100).toFixed(0)}% QUIET)</tspan>
+                    )}
+                  </text>
+                </g>
+              )}
+
               {/* Volume Bars for each session */}
               {candles.map((c, i) => {
                 const x = padLeft + i * stepX + stepX / 2;
@@ -773,6 +860,59 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
                   </g>
                 );
               })}
+
+              {/* Volume SMA 20 Overlay Trendline */}
+              {showVolSMA20 && volSma20PolylineCoords.length > 0 && (
+                <g id="volume-sma20-trendline">
+                  {/* Subtle Amber Glow Polyline */}
+                  <polyline
+                    points={volSma20PolylineCoords.join(' ')}
+                    fill="none"
+                    stroke="#f59e0b"
+                    strokeWidth="3.2"
+                    strokeOpacity="0.28"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  {/* Crisp Sharp Foreground SMA 20 Line */}
+                  <polyline
+                    points={volSma20PolylineCoords.join(' ')}
+                    fill="none"
+                    stroke="#fbbf24"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+
+                  {/* Marker Dot for Active / Hovered Session on the SMA line */}
+                  {(() => {
+                    const targetSession = hoveredCandle || latest;
+                    const pt = volSma20Points.find((p) => p.date === targetSession.date);
+                    if (!pt) return null;
+                    return (
+                      <g id="vol-sma20-active-marker">
+                        <circle
+                          cx={pt.x}
+                          cy={pt.y}
+                          r="4.5"
+                          fill="#fbbf24"
+                          fillOpacity="0.35"
+                          stroke="#f59e0b"
+                          strokeWidth="1"
+                        />
+                        <circle
+                          cx={pt.x}
+                          cy={pt.y}
+                          r="2"
+                          fill="#ffffff"
+                          stroke="#fbbf24"
+                          strokeWidth="0.8"
+                        />
+                      </g>
+                    );
+                  })()}
+                </g>
+              )}
             </g>
           )}
 
@@ -1106,6 +1246,8 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
             const bottomCrosshairY = subBottom;
             const mainVolHeight = maxVolume > 0 ? (hoveredCandle.volume / maxVolume) * maxMainVolHeight : 0;
             const yMainVolTop = mainPanelBaseline - mainVolHeight;
+            const hoveredVolSmaObj = volSma20Points.find((p) => p.date === hoveredCandle.date);
+            const yVolSma = hoveredVolSmaObj?.y;
 
             // Timestamp badge coordinates (at bottom of chart)
             const timeBadgeW = 86;
@@ -1130,7 +1272,7 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
 
             // Floating terminal inspection tooltip box
             const tooltipW = 168;
-            const tooltipH = 84;
+            const tooltipH = showVolSMA20 && hoveredVolSmaObj ? 96 : 84;
             const tooltipOnLeft = x > (usableWidth / 2) + padLeft;
             const tooltipX = tooltipOnLeft ? x - tooltipW - 14 : x + 14;
             const tooltipY = Math.max(padTop + 4, Math.min(mainHeight - tooltipH - 4, yPrice - tooltipH / 2));
@@ -1195,6 +1337,37 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
                       fill="#ffffff"
                       stroke={priceColor}
                       strokeWidth="1"
+                    />
+                  </g>
+                )}
+
+                {/* Volume SMA 20 Alignment Marker on Vertical Crosshair Line */}
+                {showVolumeBars && showVolSMA20 && yVolSma !== undefined && (
+                  <g id="crosshair-vol-sma-alignment">
+                    <line
+                      x1={x - 5}
+                      y1={yVolSma}
+                      x2={x + 5}
+                      y2={yVolSma}
+                      stroke="#fbbf24"
+                      strokeWidth="1.5"
+                    />
+                    <circle
+                      cx={x}
+                      cy={yVolSma}
+                      r="4"
+                      fill="#fbbf24"
+                      fillOpacity="0.4"
+                      stroke="#fbbf24"
+                      strokeWidth="1"
+                    />
+                    <circle
+                      cx={x}
+                      cy={yVolSma}
+                      r="1.8"
+                      fill="#ffffff"
+                      stroke="#f59e0b"
+                      strokeWidth="0.8"
                     />
                   </g>
                 )}
@@ -1446,6 +1619,26 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
                   >
                     VOLUME: <tspan fill="#e2e8f0" fontWeight="bold">{(hoveredCandle.volume / 1000000).toFixed(2)}M</tspan>
                   </text>
+
+                  {/* Row 6: Volume SMA 20 */}
+                  {showVolSMA20 && hoveredVolSmaObj && (
+                    <text
+                      x={tooltipX + 7}
+                      y={tooltipY + 84}
+                      fill="#94a3b8"
+                      fontSize="8"
+                      fontFamily="monospace"
+                    >
+                      VOL SMA(20): <tspan fill="#fbbf24" fontWeight="bold">{(hoveredVolSmaObj.val / 1000000).toFixed(2)}M</tspan>{' '}
+                      <tspan
+                        fill={hoveredCandle.volume >= hoveredVolSmaObj.val ? '#10b981' : '#f43f5e'}
+                        fontSize="7.5"
+                        fontWeight="bold"
+                      >
+                        ({hoveredCandle.volume >= hoveredVolSmaObj.val ? '+SURGE' : '-QUIET'})
+                      </tspan>
+                    </text>
+                  )}
                 </g>
               </g>
             );

@@ -53,12 +53,15 @@ export function generateAAPL60Sessions(): CandleData[] {
 
   // Calculate technical indicators (SMA20, SMA50, EMA9, Bollinger Bands, RSI)
   for (let i = 0; i < sessions.length; i++) {
-    // SMA 20
+    // SMA 20 (Price & Volume)
     if (i >= 19) {
       const slice = sessions.slice(i - 19, i + 1);
       const sum = slice.reduce((acc, c) => acc + c.close, 0);
       const sma = sum / 20;
       sessions[i].ma20 = Math.round(sma * 100) / 100;
+
+      const sumVol = slice.reduce((acc, c) => acc + c.volume, 0);
+      sessions[i].volMa20 = Math.round(sumVol / 20);
 
       // Bollinger Bands (2 std deviations of 20 SMA)
       const variance = slice.reduce((acc, c) => acc + Math.pow(c.close - sma, 2), 0) / 20;
