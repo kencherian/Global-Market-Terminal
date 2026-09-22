@@ -80,6 +80,9 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
   const usableWidth = svgWidth - padLeft - padRight;
   const stepX = usableWidth / candles.length;
 
+  const mainPanelBaseline = mainHeight - padBottom;
+  const maxMainVolHeight = 46;
+
   const getY = (price: number) => {
     return mainHeight - padBottom - ((price - minPrice) / priceRange) * (mainHeight - padTop - padBottom);
   };
@@ -379,7 +382,7 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
               className={`px-2 py-0.5 rounded transition-colors ${
                 showVolumeBars ? 'bg-neutral-800 text-neutral-200 font-semibold' : 'text-neutral-500 hover:text-neutral-300'
               }`}
-              title="Toggle Background Volume Bars"
+              title="Toggle Volume Histogram at Bottom of Main Chart Panel"
             >
               VOL
             </button>
@@ -706,6 +709,73 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
             </g>
           )}
 
+          {/* VOLUME HISTOGRAM AT BOTTOM OF MAIN CHART PANEL */}
+          {showVolumeBars && (
+            <g id="main-panel-volume-histogram">
+              {/* Reference Grid Line for Volume Ceiling in Main Panel */}
+              <line
+                x1={padLeft}
+                y1={mainPanelBaseline - maxMainVolHeight}
+                x2={svgWidth - padRight}
+                y2={mainPanelBaseline - maxMainVolHeight}
+                stroke="#1e293b"
+                strokeWidth="0.8"
+                strokeDasharray="2,2"
+                opacity="0.6"
+              />
+              <text
+                x={padLeft + 4}
+                y={mainPanelBaseline - maxMainVolHeight - 3}
+                fill="#64748b"
+                fontSize="7.5"
+                fontFamily="monospace"
+                fontWeight="semibold"
+                letterSpacing="0.05em"
+              >
+                VOL HISTOGRAM (PEAK {(maxVolume / 1000000).toFixed(1)}M)
+              </text>
+
+              {/* Volume Bars for each session */}
+              {candles.map((c, i) => {
+                const x = padLeft + i * stepX + stepX / 2;
+                const vHeight = maxVolume > 0 ? (c.volume / maxVolume) * maxMainVolHeight : 0;
+                const isBull = c.close >= c.open;
+                const candleWidth = Math.max(stepX * 0.72, 3);
+                const isHovered = hoveredCandle?.date === c.date;
+                const barColor = isBull ? '#10b981' : '#f43f5e';
+                const strokeColor = isBull ? '#34d399' : '#fb7185';
+
+                return (
+                  <g key={`main-vol-${c.date}`}>
+                    {/* Volume Bar Column */}
+                    <rect
+                      x={x - candleWidth / 2}
+                      y={mainPanelBaseline - vHeight}
+                      width={candleWidth}
+                      height={Math.max(vHeight, 1)}
+                      fill={barColor}
+                      fillOpacity={isHovered ? 0.85 : 0.3}
+                      stroke={isHovered ? '#ffffff' : strokeColor}
+                      strokeWidth={isHovered ? 1.2 : 0.5}
+                      rx="0.5"
+                    />
+                    {/* Highlighted Top Edge for Hovered Volume Bar */}
+                    {isHovered && (
+                      <line
+                        x1={x - candleWidth / 2}
+                        y1={mainPanelBaseline - vHeight}
+                        x2={x + candleWidth / 2}
+                        y2={mainPanelBaseline - vHeight}
+                        stroke="#ffffff"
+                        strokeWidth="1.5"
+                      />
+                    )}
+                  </g>
+                );
+              })}
+            </g>
+          )}
+
           {/* Area Chart Mode */}
           {chartType === 'area' && (
             <>
@@ -821,29 +891,6 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
               fillOpacity="0.08"
             />
 
-            {/* Background Volume Bars (when enabled) */}
-            {showVolumeBars &&
-              candles.map((c, i) => {
-                const x = padLeft + i * stepX + stepX / 2;
-                const vHeight = (c.volume / maxVolume) * (subUsableHeight * 0.7);
-                const isBull = c.close >= c.open;
-                const candleWidth = Math.max(stepX * 0.65, 2.5);
-                const isHovered = hoveredCandle?.date === c.date;
-                return (
-                  <rect
-                    key={`v-${c.date}`}
-                    x={x - candleWidth / 2}
-                    y={subBottom - vHeight}
-                    width={candleWidth}
-                    height={vHeight}
-                    fill={isBull ? '#10b981' : '#f43f5e'}
-                    stroke={isHovered ? '#ffffff' : 'none'}
-                    strokeWidth={isHovered ? 1.2 : 0}
-                    opacity={isHovered ? 1 : showRsiOverlay ? 0.28 : 0.65}
-                  />
-                );
-              })}
-
             {/* Threshold Reference Lines: 70 OB, 50 Midline, 30 OS */}
             <line
               x1={padLeft}
@@ -917,19 +964,8 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
               fontWeight="bold"
               letterSpacing="0.05em"
             >
-              RSI(14) SECONDARY OVERLAY
+              RSI(14) SECONDARY OSCILLATOR
             </text>
-            {showVolumeBars && (
-              <text
-                x={padLeft + 165}
-                y={subTop + 11}
-                fill="#64748b"
-                fontSize="8.5"
-                fontFamily="monospace"
-              >
-                + VOLUME HISTOGRAM
-              </text>
-            )}
 
             {/* RSI SECONDARY LINE GRAPH OVERLAY */}
             {showRsiOverlay && rsiPoints.length > 0 && (
@@ -1068,8 +1104,8 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
 
             // Vertical guide line extends fully through the main chart AND through the entire volume sub-panel
             const bottomCrosshairY = subBottom;
-            const volHeight = (hoveredCandle.volume / maxVolume) * (subUsableHeight * 0.7);
-            const yVolTop = subBottom - volHeight;
+            const mainVolHeight = maxVolume > 0 ? (hoveredCandle.volume / maxVolume) * maxMainVolHeight : 0;
+            const yMainVolTop = mainPanelBaseline - mainVolHeight;
 
             // Timestamp badge coordinates (at bottom of chart)
             const timeBadgeW = 86;
@@ -1130,31 +1166,31 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
                 {/* Sub-panel Divider Intersection Marker */}
                 <circle cx={x} cy={mainHeight} r="2" fill="#38bdf8" opacity="0.8" />
 
-                {/* Volume Sub-Panel Alignment Marker on the Vertical Guide Line */}
+                {/* Volume Alignment Marker at Top of Volume Bar in Main Chart Panel */}
                 {showVolumeBars && (
                   <g id="crosshair-volume-alignment">
-                    {/* Horizontal pip aligned with top of volume bar */}
+                    {/* Horizontal pip aligned with top of volume bar in main panel */}
                     <line
                       x1={x - 6}
-                      y1={yVolTop}
+                      y1={yMainVolTop}
                       x2={x + 6}
-                      y2={yVolTop}
+                      y2={yMainVolTop}
                       stroke="#ffffff"
                       strokeWidth="1.5"
                     />
-                    {/* Target dot at top of active volume bar */}
+                    {/* Target dot at top of active volume bar in main panel */}
                     <circle
                       cx={x}
-                      cy={yVolTop}
-                      r="5"
+                      cy={yMainVolTop}
+                      r="4.5"
                       fill={priceColor}
-                      fillOpacity="0.35"
+                      fillOpacity="0.4"
                       stroke={priceColor}
                       strokeWidth="1.2"
                     />
                     <circle
                       cx={x}
-                      cy={yVolTop}
+                      cy={yMainVolTop}
                       r="2"
                       fill="#ffffff"
                       stroke={priceColor}

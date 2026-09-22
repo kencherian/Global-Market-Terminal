@@ -537,6 +537,22 @@ function generateStandaloneHtml(
       const smaPolyline = smaPoints.length ? \`<polyline points="\${smaPoints.join(' ')}" fill="none" stroke="#f59e0b" stroke-width="1.5"/>\` : '';
       const emaPolyline = emaPoints.length ? \`<polyline points="\${emaPoints.join(' ')}" fill="none" stroke="#818cf8" stroke-width="1.5"/>\` : '';
 
+      const maxMainVol = Math.max(...AAPL_DATA.map(d => d.volume || 40000000));
+      const maxMainVolH = 46;
+      let volumeHtml = \`
+        <line x1="\${padLeft}" y1="\${mainHeight - 10 - maxMainVolH}" x2="\${width - padRight}" y2="\${mainHeight - 10 - maxMainVolH}" stroke="#1e293b" stroke-width="0.8" stroke-dasharray="2,2" opacity="0.6"/>
+        <text x="\${padLeft + 4}" y="\${mainHeight - 10 - maxMainVolH - 3}" fill="#64748b" font-size="7.5" font-family="monospace">VOL HISTOGRAM (PEAK \${(maxMainVol / 1000000).toFixed(1)}M)</text>
+      \`;
+      AAPL_DATA.forEach((c, i) => {
+        const x = padLeft + i * stepX + stepX / 2;
+        const vH = maxMainVol > 0 ? ((c.volume || 40000000) / maxMainVol) * maxMainVolH : 0;
+        const isBull = c.close >= c.open;
+        const barW = Math.max(stepX * 0.72, 3);
+        const col = isBull ? '#10b981' : '#ef4444';
+        const str = isBull ? '#34d399' : '#fb7185';
+        volumeHtml += \`<rect x="\${x - barW / 2}" y="\${mainHeight - 10 - vH}" width="\${barW}" height="\${Math.max(vH, 1)}" fill="\${col}" fill-opacity="0.3" stroke="\${str}" stroke-width="0.5" rx="0.5"/>\`;
+      });
+
       const rsiY70 = subTop + (1 - 0.70) * subHeight;
       const rsiY50 = subTop + (1 - 0.50) * subHeight;
       const rsiY30 = subTop + (1 - 0.30) * subHeight;
@@ -562,6 +578,11 @@ function generateStandaloneHtml(
           \${vapHtml}
         </g>
 
+        <!-- Volume Histogram at Bottom of Main Chart Panel -->
+        <g id="main-volume-histogram">
+          \${volumeHtml}
+        </g>
+
         \${candleHtml}
         \${smaPolyline}
         \${emaPolyline}
@@ -579,7 +600,7 @@ function generateStandaloneHtml(
         <text x="\${width - padRight + 6}" y="\${rsiY70 + 3}" fill="#f43f5e" font-size="8.5" font-family="monospace" font-weight="bold">70 OB</text>
         <text x="\${width - padRight + 6}" y="\${rsiY50 + 3}" fill="#64748b" font-size="8" font-family="monospace">50</text>
         <text x="\${width - padRight + 6}" y="\${rsiY30 + 3}" fill="#10b981" font-size="8.5" font-family="monospace" font-weight="bold">30 OS</text>
-        <text x="\${padLeft + 4}" y="\${subTop + 10}" fill="#38bdf8" font-size="8.5" font-family="monospace" font-weight="bold">RSI(14) SECONDARY OVERLAY</text>
+        <text x="\${padLeft + 4}" y="\${subTop + 10}" fill="#38bdf8" font-size="8.5" font-family="monospace" font-weight="bold">RSI(14) SECONDARY OSCILLATOR</text>
 
         \${rsiPolyline}
 
@@ -621,8 +642,9 @@ function generateStandaloneHtml(
         const rsiVal = c.rsi || 50;
         const yRsi = subTop + (1 - rsiVal / 100) * subHeight;
         const maxVol = Math.max(...AAPL_DATA.map(d => d.volume || 40000000));
-        const vHeight = ((c.volume || 40000000) / maxVol) * (subHeight * 0.7);
-        const yVolTop = subBottom - vHeight;
+        const maxMainVolH = 46;
+        const vHeight = ((c.volume || 40000000) / maxVol) * maxMainVolH;
+        const yVolTop = mainHeight - 10 - vHeight;
         const timeBadgeX = Math.max(padLeft, Math.min(width - padRight - 66, x - 33));
 
         crosshairG.innerHTML = \`
@@ -632,9 +654,9 @@ function generateStandaloneHtml(
           <circle cx="\${x}" cy="10" r="2" fill="#38bdf8"/>
           <circle cx="\${x}" cy="\${mainHeight}" r="2" fill="#38bdf8" opacity="0.8"/>
 
-          <!-- Volume Sub-Panel Alignment Marker -->
+          <!-- Volume Alignment Marker (Main Panel Volume Histogram) -->
           <line x1="\${x - 6}" y1="\${yVolTop}" x2="\${x + 6}" y2="\${yVolTop}" stroke="#ffffff" stroke-width="1.5"/>
-          <circle cx="\${x}" cy="\${yVolTop}" r="4.5" fill="\${pColor}" fill-opacity="0.35" stroke="\${pColor}" stroke-width="1.2"/>
+          <circle cx="\${x}" cy="\${yVolTop}" r="4.5" fill="\${pColor}" fill-opacity="0.4" stroke="\${pColor}" stroke-width="1.2"/>
           <circle cx="\${x}" cy="\${yVolTop}" r="2" fill="#ffffff" stroke="\${pColor}" stroke-width="1"/>
 
           <!-- Price Crosshair Line & Target -->
