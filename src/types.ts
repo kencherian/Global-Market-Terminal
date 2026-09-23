@@ -104,3 +104,25 @@ export interface TerminalAlert {
   source: string;
   text: string;
 }
+
+export type DivergenceType = 'BULLISH' | 'BEARISH' | 'HIDDEN_BULLISH' | 'HIDDEN_BEARISH';
+
+export interface DivergencePoint {
+  index: number;
+  date: string;
+  price: number;
+  rsi: number;
+}
+
+export interface RsiDivergence {
+  id: string;
+  type: DivergenceType;
+  p1: DivergencePoint;
+  p2: DivergencePoint;
+  priceDelta: number;
+  priceDeltaPct: number;
+  rsiDelta: number;
+  detectedAt: string;
+  status: 'ACTIVE' | 'CONFIRMED' | 'HISTORICAL';
+  summary: string;
+}

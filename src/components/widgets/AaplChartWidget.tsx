@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { CandleData } from '../../types';
+import { CandleData, RsiDivergence } from '../../types';
 import { 
   BarChart3, 
   LineChart, 
@@ -15,14 +15,20 @@ import {
   RotateCcw,
   Zap,
   ChevronDown,
-  X
+  X,
+  Compass,
+  ArrowUpRight,
+  ArrowDownRight,
+  Activity
 } from 'lucide-react';
 import { playTerminalAlarm } from '../../services/soundEffects';
+import { detectRsiDivergences, createSyntheticDivergence } from '../../services/divergenceDetector';
 
 interface AaplChartWidgetProps {
   candles: CandleData[];
   liveFlash: boolean;
   onThresholdHit?: (price: number, threshold: number) => void;
+  onDivergenceDetected?: (divergence: RsiDivergence) => void;
 }
 
 export interface VapBin {
@@ -40,7 +46,7 @@ export interface VapBin {
   isValueArea: boolean;
 }
 
-export function AaplChartWidget({ candles, liveFlash, onThresholdHit }: AaplChartWidgetProps) {
+export function AaplChartWidget({ candles, liveFlash, onThresholdHit, onDivergenceDetected }: AaplChartWidgetProps) {
   const [chartType, setChartType] = useState<'candlestick' | 'line' | 'area'>('candlestick');
   const [showSMA20, setShowSMA20] = useState(true);
   const [showSMA50, setShowSMA50] = useState(false);
@@ -69,9 +75,69 @@ export function AaplChartWidget({ candles, liveFlash, onThresholdHit }: AaplChar
   const [showThresholdSettings, setShowThresholdSettings] = useState(false);
   const [triggerHistory, setTriggerHistory] = useState<{ price: number; time: string; target: number }[]>([]);
 
+  // Automated RSI Divergence Detection State
+  const [showDivergences, setShowDivergences] = useState(true);
+  const [divergences, setDivergences] = useState<RsiDivergence[]>([]);
+  const [activeDivergenceNotice, setActiveDivergenceNotice] = useState<RsiDivergence | null>(null);
+  const [selectedDivergence, setSelectedDivergence] = useState<RsiDivergence | null>(null);
+  const [showDivergenceMenu, setShowDivergenceMenu] = useState(false);
+  const alertedDivergenceIdsRef = useRef<Set<string>>(new Set());
+
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const lastEvaluatedCloseRef = useRef<number>(candles[candles.length - 1]?.close || 232.0);
+
+  // Automated RSI Divergence Scanner Loop
+  useEffect(() => {
+    const detected = detectRsiDivergences(candles);
+    setDivergences(detected);
+
+    // If there's an unalerted divergence, trigger automated visual alert in terminal log stream
+    for (const div of detected) {
+      if (!alertedDivergenceIdsRef.current.has(div.id)) {
+        alertedDivergenceIdsRef.current.add(div.id);
+        onDivergenceDetected?.(div);
+        setActiveDivergenceNotice(div);
+
+        window.dispatchEvent(
+          new CustomEvent('terminal-rsi-divergence-detected', { detail: div })
+        );
+
+        const timer = setTimeout(() => {
+          setActiveDivergenceNotice((curr) => (curr?.id === div.id ? null : curr));
+        }, 8000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [candles, onDivergenceDetected]);
+
+  const handleSimulateDivergence = (type: 'BULLISH' | 'BEARISH') => {
+    const synthetic = createSyntheticDivergence(candles, type);
+    setDivergences((prev) => [synthetic, ...prev.filter((d) => d.id !== synthetic.id)]);
+    setSelectedDivergence(synthetic);
+    setActiveDivergenceNotice(synthetic);
+    alertedDivergenceIdsRef.current.add(synthetic.id);
+    onDivergenceDetected?.(synthetic);
+
+    window.dispatchEvent(
+      new CustomEvent('terminal-rsi-divergence-detected', { detail: synthetic })
+    );
+
+    setTimeout(() => {
+      setActiveDivergenceNotice((curr) => (curr?.id === synthetic.id ? null : curr));
+    }, 8000);
+  };
+
+  const handleScanDivergences = () => {
+    const detected = detectRsiDivergences(candles);
+    setDivergences(detected);
+    if (detected.length > 0) {
+      const topDiv = detected[0];
+      setSelectedDivergence(topDiv);
+      setActiveDivergenceNotice(topDiv);
+      onDivergenceDetected?.(topDiv);
+    }
+  };
 
   if (!candles || candles.length === 0) {
     return <div className="p-4 text-center text-neutral-500 font-mono text-xs">No Candle Data Available</div>;
@@ -562,6 +628,42 @@ export function AaplChartWidget({ candles, liveFlash, onThresholdHit }: AaplChar
               <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
               CROSSHAIR
             </button>
+            <div className="flex items-center">
+              <button
+                onClick={() => setShowDivergences(!showDivergences)}
+                className={`px-2 py-0.5 rounded flex items-center gap-1.5 transition-colors ${
+                  showDivergences
+                    ? divergences.length > 0 && divergences[0].type === 'BULLISH'
+                      ? 'bg-emerald-500/25 text-emerald-300 font-bold border border-emerald-500/40 shadow-[0_0_8px_rgba(16,185,129,0.2)]'
+                      : divergences.length > 0 && divergences[0].type === 'BEARISH'
+                      ? 'bg-rose-500/25 text-rose-300 font-bold border border-rose-500/40 shadow-[0_0_8px_rgba(244,63,94,0.2)]'
+                      : 'bg-purple-500/25 text-purple-300 font-bold border border-purple-500/40 shadow-[0_0_8px_rgba(168,85,247,0.2)]'
+                    : 'text-neutral-500 hover:text-neutral-300'
+                }`}
+                title="Toggle Automated RSI Divergence Trendline Overlays (Bullish/Bearish Reversals)"
+              >
+                <Activity className="w-3 h-3 text-purple-400" />
+                <span>RSI DIV</span>
+                {divergences.length > 0 && (
+                  <span className={`text-[8.5px] px-1 py-0.2 rounded font-mono font-bold ${
+                    divergences[0].type === 'BULLISH'
+                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-700'
+                      : 'bg-rose-950 text-rose-300 border border-rose-700'
+                  }`}>
+                    {divergences.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setShowDivergenceMenu(!showDivergenceMenu)}
+                className={`px-1 py-0.5 text-neutral-400 hover:text-white rounded ml-0.5 transition-colors ${
+                  showDivergenceMenu ? 'bg-neutral-800 text-white' : ''
+                }`}
+                title="Open RSI Divergence Detection Controls & Simulations"
+              >
+                <ChevronDown className="w-3 h-3" />
+              </button>
+            </div>
           </div>
 
           {/* Price Threshold Alarm Trigger & Config */}
@@ -797,6 +899,121 @@ export function AaplChartWidget({ candles, liveFlash, onThresholdHit }: AaplChar
             className="px-2 py-0.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 rounded text-[10px]"
           >
             CANCEL
+          </button>
+        </div>
+      )}
+
+      {/* Divergence Controls & Simulation Menu */}
+      {showDivergenceMenu && (
+        <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 rounded bg-neutral-950 border border-purple-900/80 text-[11px] font-mono shadow-xl">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="text-purple-300 font-bold flex items-center gap-1.5">
+              <Activity className="w-3.5 h-3.5 text-purple-400" />
+              AUTOMATED RSI DIVERGENCE ENGINE:
+            </span>
+            <button
+              onClick={handleScanDivergences}
+              className="px-2 py-0.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-200 hover:text-white border border-neutral-700 rounded text-[10px] font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+              title="Rescan candle history for divergences"
+            >
+              <span>SCAN NOW</span>
+            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => handleSimulateDivergence('BULLISH')}
+                className="px-2 py-0.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-700 rounded text-[10px] font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                title="Simulate Bullish RSI Divergence (Price Lower Low vs RSI Higher Low) and trigger visual alert in terminal tape"
+              >
+                <ArrowUpRight className="w-3 h-3 text-emerald-400" />
+                <span>TEST BULLISH DIV</span>
+              </button>
+              <button
+                onClick={() => handleSimulateDivergence('BEARISH')}
+                className="px-2 py-0.5 bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-700 rounded text-[10px] font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                title="Simulate Bearish RSI Divergence (Price Higher High vs RSI Lower High) and trigger visual alert in terminal tape"
+              >
+                <ArrowDownRight className="w-3 h-3 text-rose-400" />
+                <span>TEST BEARISH DIV</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 text-[10px]">
+            <span className="text-neutral-400">
+              DETECTED: <strong className="text-white">{divergences.length}</strong> (
+              <span className="text-emerald-400 font-bold">{divergences.filter((d) => d.type === 'BULLISH').length} Bull</span> •{' '}
+              <span className="text-rose-400 font-bold">{divergences.filter((d) => d.type === 'BEARISH').length} Bear</span>)
+            </span>
+            <button
+              onClick={() => setShowDivergenceMenu(false)}
+              className="p-0.5 text-neutral-500 hover:text-white rounded cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Automated Divergence Live Alert Banner */}
+      {activeDivergenceNotice && (
+        <div className={`flex flex-wrap items-center justify-between gap-2.5 px-3 py-2 rounded text-[11px] font-mono border-2 shadow-xl animate-pulse ${
+          activeDivergenceNotice.type === 'BULLISH'
+            ? 'bg-gradient-to-r from-emerald-950 via-emerald-900/90 to-emerald-950 border-emerald-500 text-emerald-100 shadow-[0_0_24px_rgba(16,185,129,0.4)]'
+            : 'bg-gradient-to-r from-rose-950 via-rose-900/90 to-rose-950 border-rose-500 text-rose-100 shadow-[0_0_24px_rgba(244,63,94,0.4)]'
+        }`}>
+          <div className="flex items-center gap-2">
+            <span className={`px-2 py-0.5 rounded font-black text-[9px] uppercase tracking-wider ${
+              activeDivergenceNotice.type === 'BULLISH' ? 'bg-emerald-500 text-black' : 'bg-rose-500 text-white'
+            }`}>
+              {activeDivergenceNotice.type === 'BULLISH' ? '▲ BULLISH RSI DIVERGENCE' : '▼ BEARISH RSI DIVERGENCE'}
+            </span>
+            <span className="font-semibold">{activeDivergenceNotice.summary}</span>
+            <span className="text-neutral-300 text-[10px] hidden lg:inline">
+              [LOGGED TO TERMINAL STREAM]
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelectedDivergence(activeDivergenceNotice)}
+              className="px-2 py-0.5 bg-neutral-900 hover:bg-neutral-800 text-white border border-neutral-700 rounded text-[10px] font-bold cursor-pointer"
+            >
+              FOCUS
+            </button>
+            <button
+              onClick={() => setActiveDivergenceNotice(null)}
+              className="p-1 text-neutral-400 hover:text-white cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Selected Divergence Focus Inspection Strip */}
+      {selectedDivergence && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 rounded bg-neutral-900/90 border border-neutral-700 text-[10px] font-mono">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className={`font-bold ${selectedDivergence.type === 'BULLISH' ? 'text-emerald-400' : 'text-rose-400'}`}>
+              INSPECTING {selectedDivergence.type} DIV:
+            </span>
+            <span className="text-neutral-300">
+              Pivot 1: <strong>${selectedDivergence.p1.price.toFixed(2)}</strong> (RSI {selectedDivergence.p1.rsi.toFixed(1)}, {selectedDivergence.p1.date})
+            </span>
+            <span className="text-neutral-400">➔</span>
+            <span className="text-neutral-300">
+              Pivot 2: <strong>${selectedDivergence.p2.price.toFixed(2)}</strong> (RSI {selectedDivergence.p2.rsi.toFixed(1)}, {selectedDivergence.p2.date})
+            </span>
+            <span className={`px-1.5 py-0.2 rounded font-bold ${
+              selectedDivergence.type === 'BULLISH' ? 'bg-emerald-950 text-emerald-300' : 'bg-rose-950 text-rose-300'
+            }`}>
+              ΔPrice: {selectedDivergence.priceDelta >= 0 ? '+' : ''}{selectedDivergence.priceDelta.toFixed(2)} ({selectedDivergence.priceDeltaPct.toFixed(2)}%) | ΔRSI: {selectedDivergence.rsiDelta >= 0 ? '+' : ''}{selectedDivergence.rsiDelta.toFixed(1)}
+            </span>
+          </div>
+          <button
+            onClick={() => setSelectedDivergence(null)}
+            className="text-neutral-400 hover:text-white text-[9px] underline cursor-pointer"
+          >
+            Clear Focus
           </button>
         </div>
       )}
@@ -1376,6 +1593,141 @@ export function AaplChartWidget({ candles, liveFlash, onThresholdHit }: AaplChar
             <polyline points={ema9Points.join(' ')} fill="none" stroke="#818cf8" strokeWidth="1.5" />
           )}
 
+          {/* AUTOMATED RSI DIVERGENCE TRENDLINES & PIVOTS ON MAIN PRICE CHART */}
+          {showDivergences && (
+            <g id="divergence-price-overlays">
+              {divergences.map((div) => {
+                const isBull = div.type === 'BULLISH';
+                const color = isBull ? '#10b981' : '#f43f5e';
+                const x1 = padLeft + div.p1.index * stepX + stepX / 2;
+                const x2 = padLeft + div.p2.index * stepX + stepX / 2;
+                const y1 = getY(div.p1.price);
+                const y2 = getY(div.p2.price);
+                const isSelected = selectedDivergence?.id === div.id;
+
+                return (
+                  <g 
+                    key={`price-${div.id}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedDivergence(div);
+                    }}
+                    className="cursor-pointer"
+                  >
+                    {/* Synchronized Vertical Alignment Drop Guides to RSI Subgraph */}
+                    <line
+                      x1={x1}
+                      y1={y1}
+                      x2={x1}
+                      y2={mainHeight}
+                      stroke={color}
+                      strokeDasharray="2,2"
+                      strokeWidth="1"
+                      strokeOpacity="0.4"
+                    />
+                    <line
+                      x1={x2}
+                      y1={y2}
+                      x2={x2}
+                      y2={mainHeight}
+                      stroke={color}
+                      strokeDasharray="2,2"
+                      strokeWidth="1"
+                      strokeOpacity="0.5"
+                    />
+
+                    {/* Glowing Aura Background Trendline */}
+                    <line
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      stroke={color}
+                      strokeWidth={isSelected ? 8 : 5}
+                      strokeOpacity={isSelected ? 0.45 : 0.22}
+                      strokeLinecap="round"
+                    />
+
+                    {/* Crisp Distinct Divergence Ray Line */}
+                    <line
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      stroke={color}
+                      strokeWidth={isSelected ? 2.6 : 2}
+                      strokeDasharray="5,3"
+                      strokeLinecap="round"
+                    />
+
+                    {/* Pivot 1 Anchor Marker */}
+                    <circle
+                      cx={x1}
+                      y={y1}
+                      r="4.5"
+                      fill="#04070a"
+                      stroke={color}
+                      strokeWidth="2"
+                    />
+
+                    {/* Pivot 2 Anchor Marker with Pulse Glow */}
+                    <circle
+                      cx={x2}
+                      y={y2}
+                      r="7.5"
+                      fill={color}
+                      opacity="0.35"
+                      className="animate-ping"
+                    />
+                    <circle
+                      cx={x2}
+                      y={y2}
+                      r="4.5"
+                      fill={color}
+                      stroke="#04070a"
+                      strokeWidth="1.5"
+                    />
+
+                    {/* Divergence Label Callout Badge at Pivot 2 */}
+                    {(() => {
+                      const tagWidth = 84;
+                      const tagHeight = 17;
+                      const tagX = Math.max(padLeft, Math.min(svgWidth - padRight - tagWidth, x2 + (x2 > svgWidth - 110 ? -tagWidth - 6 : 8)));
+                      const tagY = Math.max(padTop + 2, Math.min(mainHeight - tagHeight - 2, y2 + (isBull ? 12 : -22)));
+
+                      return (
+                        <g>
+                          <rect
+                            x={tagX}
+                            y={tagY}
+                            width={tagWidth}
+                            height={tagHeight}
+                            rx="3"
+                            fill={isBull ? '#064e3b' : '#881337'}
+                            stroke={color}
+                            strokeWidth="1.2"
+                            opacity="0.95"
+                          />
+                          <text
+                            x={tagX + tagWidth / 2}
+                            y={tagY + 11.5}
+                            textAnchor="middle"
+                            fill="#ffffff"
+                            fontSize="8.5"
+                            fontFamily="monospace"
+                            fontWeight="bold"
+                          >
+                            {isBull ? '▲ BULL DIV' : '▼ BEAR DIV'}
+                          </text>
+                        </g>
+                      );
+                    })()}
+                  </g>
+                );
+              })}
+            </g>
+          )}
+
           {/* Divider between Main Price Chart and Bottom Secondary RSI Chart */}
           <line
             x1={padLeft}
@@ -1619,6 +1971,95 @@ export function AaplChartWidget({ candles, liveFlash, onThresholdHit }: AaplChar
                     );
                   })()
                 )}
+              </g>
+            )}
+
+            {/* AUTOMATED RSI DIVERGENCE TRENDLINES & MARKERS ON RSI GRAPH */}
+            {showDivergences && (
+              <g id="divergence-rsi-overlays">
+                {divergences.map((div) => {
+                  const isBull = div.type === 'BULLISH';
+                  const color = isBull ? '#10b981' : '#f43f5e';
+                  const x1 = padLeft + div.p1.index * stepX + stepX / 2;
+                  const x2 = padLeft + div.p2.index * stepX + stepX / 2;
+                  const yRsi1 = getRsiY(div.p1.rsi);
+                  const yRsi2 = getRsiY(div.p2.rsi);
+                  const isSelected = selectedDivergence?.id === div.id;
+
+                  return (
+                    <g 
+                      key={`rsi-${div.id}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedDivergence(div);
+                      }}
+                      className="cursor-pointer"
+                    >
+                      {/* Glowing background line on RSI graph */}
+                      <line
+                        x1={x1}
+                        y1={yRsi1}
+                        x2={x2}
+                        y2={yRsi2}
+                        stroke={color}
+                        strokeWidth={isSelected ? 6 : 4}
+                        strokeOpacity={isSelected ? 0.45 : 0.22}
+                        strokeLinecap="round"
+                      />
+
+                      {/* Crisp RSI divergence slope line */}
+                      <line
+                        x1={x1}
+                        y1={yRsi1}
+                        x2={x2}
+                        y2={yRsi2}
+                        stroke={color}
+                        strokeWidth={isSelected ? 2.4 : 1.8}
+                        strokeDasharray="4,2"
+                        strokeLinecap="round"
+                      />
+
+                      {/* Anchor circles on RSI */}
+                      <circle cx={x1} cy={yRsi1} r="3" fill="#04070a" stroke={color} strokeWidth="1.5" />
+                      <circle cx={x2} cy={yRsi2} r="3.5" fill={color} stroke="#04070a" strokeWidth="1.2" />
+
+                      {/* RSI Delta Tag Badge on bottom graph */}
+                      {(() => {
+                        const rw = 68;
+                        const rh = 14;
+                        const rx = Math.max(padLeft, Math.min(svgWidth - padRight - rw, x2 + (x2 > svgWidth - 100 ? -rw - 4 : 6)));
+                        const ry = Math.max(subTop + 2, Math.min(subBottom - rh - 2, yRsi2 - 7));
+
+                        return (
+                          <g>
+                            <rect
+                              x={rx}
+                              y={ry}
+                              width={rw}
+                              height={rh}
+                              rx="2"
+                              fill="#04070a"
+                              stroke={color}
+                              strokeWidth="1"
+                              opacity="0.9"
+                            />
+                            <text
+                              x={rx + rw / 2}
+                              y={ry + 10}
+                              textAnchor="middle"
+                              fill={color}
+                              fontSize="8"
+                              fontFamily="monospace"
+                              fontWeight="bold"
+                            >
+                              RSI {div.p2.rsi.toFixed(1)} {isBull ? `(+${div.rsiDelta.toFixed(1)})` : `(${div.rsiDelta.toFixed(1)})`}
+                            </text>
+                          </g>
+                        );
+                      })()}
+                    </g>
+                  );
+                })}
               </g>
             )}
           </g>

@@ -7,7 +7,8 @@ import {
   HeatmapStock, 
   CommodityMetal, 
   WorldClockSession, 
-  TerminalAlert 
+  TerminalAlert,
+  RsiDivergence
 } from './types';
 import { 
   generateAAPL60Sessions, 
@@ -18,6 +19,7 @@ import {
 } from './services/dataAdapter';
 import { generateOfflineZip } from './services/exportBundle';
 import { playTerminalTick, playTerminalAlarm } from './services/soundEffects';
+import { formatDivergenceAlert } from './services/divergenceDetector';
 import { TerminalHeader } from './components/TerminalHeader';
 import { CanvasGrid } from './components/CanvasGrid';
 import { WorldSessionClocksWidget } from './components/widgets/WorldSessionClocksWidget';
@@ -196,6 +198,23 @@ export default function App() {
     }, 4500);
   }, []);
 
+  // Automated RSI Divergence detection handler: triggers a visual alert in terminal log stream
+  const handleAaplDivergenceDetected = useCallback((divergence: RsiDivergence) => {
+    const alert = formatDivergenceAlert(divergence);
+
+    setAlerts((prev) => {
+      // Prevent duplicate immediate alert if already pushed
+      if (prev.some((a) => a.text.includes(divergence.id) || a.text.includes(divergence.summary))) {
+        return prev;
+      }
+      return [alert, ...prev.slice(0, 50)];
+    });
+
+    if (audioEnabledRef.current) {
+      playTerminalTick(divergence.type === 'BULLISH');
+    }
+  }, []);
+
   useEffect(() => {
     const handleGlobalAlert = (e: any) => {
       const detail = e.detail;
@@ -203,9 +222,20 @@ export default function App() {
         handleAaplThresholdHit(detail.price, detail.threshold);
       }
     };
+    const handleGlobalDivergence = (e: any) => {
+      const detail = e.detail;
+      if (detail && detail.type) {
+        handleAaplDivergenceDetected(detail);
+      }
+    };
+
     window.addEventListener('terminal-price-threshold-hit', handleGlobalAlert);
-    return () => window.removeEventListener('terminal-price-threshold-hit', handleGlobalAlert);
-  }, [handleAaplThresholdHit]);
+    window.addEventListener('terminal-rsi-divergence-detected', handleGlobalDivergence);
+    return () => {
+      window.removeEventListener('terminal-price-threshold-hit', handleGlobalAlert);
+      window.removeEventListener('terminal-rsi-divergence-detected', handleGlobalDivergence);
+    };
+  }, [handleAaplThresholdHit, handleAaplDivergenceDetected]);
 
   // Real-time clock and Session update loop (every 1000ms)
   useEffect(() => {
@@ -493,6 +523,7 @@ export default function App() {
             candles={aaplData} 
             liveFlash={aaplFlash} 
             onThresholdHit={handleAaplThresholdHit} 
+            onDivergenceDetected={handleAaplDivergenceDetected}
           />
         );
       case 'sector_heatmap':

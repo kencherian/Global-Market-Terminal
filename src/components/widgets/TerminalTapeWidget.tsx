@@ -8,13 +8,14 @@ interface TerminalTapeWidgetProps {
 }
 
 export function TerminalTapeWidget({ alerts, onClearAlerts }: TerminalTapeWidgetProps) {
-  const [filterLevel, setFilterLevel] = useState<'ALL' | 'ORDER' | 'SPIKE' | 'INFO'>('ALL');
+  const [filterLevel, setFilterLevel] = useState<'ALL' | 'ORDER' | 'SPIKE' | 'DIV' | 'INFO'>('ALL');
   const [isFrozen, setIsFrozen] = useState(false);
 
   const filtered = alerts.filter((a) => {
     if (filterLevel === 'ALL') return true;
     if (filterLevel === 'ORDER') return a.level === 'NOTICE';
     if (filterLevel === 'SPIKE') return a.level === 'SPIKE';
+    if (filterLevel === 'DIV') return a.source.startsWith('RSI-') || a.text.includes('DIVERGENCE');
     return a.level === 'INFO';
   });
 
@@ -23,13 +24,15 @@ export function TerminalTapeWidget({ alerts, onClearAlerts }: TerminalTapeWidget
       {/* Controls */}
       <div className="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-neutral-800/80">
         <div className="flex items-center gap-1 bg-neutral-950 p-0.5 rounded border border-neutral-800">
-          {(['ALL', 'ORDER', 'SPIKE', 'INFO'] as const).map((lvl) => (
+          {(['ALL', 'ORDER', 'SPIKE', 'DIV', 'INFO'] as const).map((lvl) => (
             <button
               key={lvl}
               onClick={() => setFilterLevel(lvl)}
               className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
                 filterLevel === lvl
-                  ? 'bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/40'
+                  ? lvl === 'DIV'
+                    ? 'bg-purple-500/25 text-purple-300 font-bold border border-purple-500/50'
+                    : 'bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/40'
                   : 'text-neutral-400 hover:text-white'
               }`}
             >
@@ -41,7 +44,7 @@ export function TerminalTapeWidget({ alerts, onClearAlerts }: TerminalTapeWidget
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => setIsFrozen(!isFrozen)}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] ${
+            className={`flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] cursor-pointer ${
               isFrozen ? 'bg-amber-950/50 border-amber-600 text-amber-300' : 'bg-neutral-900 border-neutral-800 text-neutral-400'
             }`}
           >
@@ -50,7 +53,7 @@ export function TerminalTapeWidget({ alerts, onClearAlerts }: TerminalTapeWidget
           </button>
           <button
             onClick={onClearAlerts}
-            className="p-1 rounded bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-rose-400"
+            className="p-1 rounded bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-rose-400 cursor-pointer"
             title="Clear Log"
           >
             <Trash2 className="w-3 h-3" />
@@ -66,7 +69,17 @@ export function TerminalTapeWidget({ alerts, onClearAlerts }: TerminalTapeWidget
           filtered.slice(0, 40).map((a) => {
             let color = 'text-neutral-300';
             let badgeColor = 'bg-neutral-800 text-neutral-400';
-            if (a.level === 'SPIKE') {
+
+            if (a.source === 'RSI-BULL') {
+              color = 'text-emerald-300 font-bold';
+              badgeColor = 'bg-emerald-950 text-emerald-300 border border-emerald-500 font-extrabold shadow-[0_0_8px_rgba(16,185,129,0.3)]';
+            } else if (a.source === 'RSI-BEAR') {
+              color = 'text-rose-300 font-bold';
+              badgeColor = 'bg-rose-950 text-rose-300 border border-rose-500 font-extrabold shadow-[0_0_8px_rgba(244,63,94,0.3)]';
+            } else if (a.source === 'THRESHOLD-HIT') {
+              color = 'text-rose-200 font-bold';
+              badgeColor = 'bg-rose-950 text-rose-300 border border-rose-600 font-bold';
+            } else if (a.level === 'SPIKE') {
               color = 'text-emerald-300 font-bold';
               badgeColor = 'bg-emerald-950 text-emerald-400 border border-emerald-800';
             } else if (a.level === 'NOTICE') {
