@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { CandleData } from '../../types';
 import { 
   BarChart3, 
@@ -7,12 +7,22 @@ import {
   Sliders, 
   TrendingUp, 
   Maximize2, 
-  Info 
+  Info,
+  Bell,
+  BellRing,
+  Target,
+  AlertTriangle,
+  RotateCcw,
+  Zap,
+  ChevronDown,
+  X
 } from 'lucide-react';
+import { playTerminalAlarm } from '../../services/soundEffects';
 
 interface AaplChartWidgetProps {
   candles: CandleData[];
   liveFlash: boolean;
+  onThresholdHit?: (price: number, threshold: number) => void;
 }
 
 export interface VapBin {
@@ -30,7 +40,7 @@ export interface VapBin {
   isValueArea: boolean;
 }
 
-export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
+export function AaplChartWidget({ candles, liveFlash, onThresholdHit }: AaplChartWidgetProps) {
   const [chartType, setChartType] = useState<'candlestick' | 'line' | 'area'>('candlestick');
   const [showSMA20, setShowSMA20] = useState(true);
   const [showSMA50, setShowSMA50] = useState(false);
@@ -44,7 +54,24 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
   const [hoveredCandle, setHoveredCandle] = useState<CandleData | null>(null);
   const [hoveredVapBin, setHoveredVapBin] = useState<VapBin | null>(null);
 
+  // Price Threshold Line & Terminal Flash Alert State
+  const [isThresholdActive, setIsThresholdActive] = useState(true);
+  const [thresholdPrice, setThresholdPrice] = useState<number>(() => {
+    const lastClose = candles[candles.length - 1]?.close || 232.0;
+    return Math.round((lastClose + 0.65) * 100) / 100;
+  });
+  const [thresholdCondition, setThresholdCondition] = useState<'cross' | 'above' | 'below'>('cross');
+  const [isTriggered, setIsTriggered] = useState(false);
+  const [widgetFlash, setWidgetFlash] = useState(false);
+  const [isDraggingThreshold, setIsDraggingThreshold] = useState(false);
+  const [isPlaceMode, setIsPlaceMode] = useState(false);
+  const [previewPrice, setPreviewPrice] = useState<number | null>(null);
+  const [showThresholdSettings, setShowThresholdSettings] = useState(false);
+  const [triggerHistory, setTriggerHistory] = useState<{ price: number; time: string; target: number }[]>([]);
+
   const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const lastEvaluatedCloseRef = useRef<number>(candles[candles.length - 1]?.close || 232.0);
 
   if (!candles || candles.length === 0) {
     return <div className="p-4 text-center text-neutral-500 font-mono text-xs">No Candle Data Available</div>;
@@ -96,6 +123,111 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
   const getRsiY = (rsi: number) => {
     const clamped = Math.max(0, Math.min(100, rsi));
     return subTop + (1 - clamped / 100) * subUsableHeight;
+  };
+
+  const getPriceFromY = useCallback((svgY: number) => {
+    const usableH = mainHeight - padTop - padBottom;
+    const clampedY = Math.max(padTop, Math.min(mainPanelBaseline, svgY));
+    const normalized = (mainPanelBaseline - clampedY) / usableH;
+    const price = minPrice + normalized * priceRange;
+    return Math.round(price * 100) / 100;
+  }, [minPrice, priceRange, mainHeight, padTop, padBottom, mainPanelBaseline]);
+
+  const getSvgCoordinates = useCallback((e: React.MouseEvent<SVGSVGElement> | MouseEvent) => {
+    if (!svgRef.current) return { x: 0, y: 0 };
+    const rect = svgRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * svgWidth;
+    const y = ((e.clientY - rect.top) / rect.height) * (subBottom + 24);
+    return { x, y };
+  }, [svgWidth, subBottom]);
+
+  // Window drag listeners when repositioning horizontal threshold line
+  useEffect(() => {
+    if (!isDraggingThreshold) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const { y } = getSvgCoordinates(e);
+      const newPrice = getPriceFromY(y);
+      setThresholdPrice(newPrice);
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingThreshold(false);
+      setIsTriggered(false);
+      setWidgetFlash(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDraggingThreshold, getSvgCoordinates, getPriceFromY]);
+
+  // Price Threshold Hit Detection Loop
+  useEffect(() => {
+    if (!isThresholdActive || thresholdPrice === null) {
+      return;
+    }
+    const currentPrice = latest.close;
+    const prevPrice = lastEvaluatedCloseRef.current;
+    lastEvaluatedCloseRef.current = currentPrice;
+
+    if (isTriggered) return;
+
+    const crossedAbove = prevPrice < thresholdPrice && currentPrice >= thresholdPrice;
+    const crossedBelow = prevPrice > thresholdPrice && currentPrice <= thresholdPrice;
+    const touchedInBar = latest.low <= thresholdPrice && latest.high >= thresholdPrice;
+    const closeTouch = Math.abs(currentPrice - thresholdPrice) < 0.08;
+
+    let hit = false;
+    if (thresholdCondition === 'above') {
+      hit = currentPrice >= thresholdPrice;
+    } else if (thresholdCondition === 'below') {
+      hit = currentPrice <= thresholdPrice;
+    } else {
+      hit = crossedAbove || crossedBelow || touchedInBar || closeTouch;
+    }
+
+    if (hit) {
+      setIsTriggered(true);
+      setWidgetFlash(true);
+      const nowTime = new Date().toLocaleTimeString();
+      setTriggerHistory((prev) => [
+        { price: currentPrice, time: nowTime, target: thresholdPrice },
+        ...prev.slice(0, 9),
+      ]);
+      playTerminalAlarm();
+      onThresholdHit?.(currentPrice, thresholdPrice);
+
+      const timer = setTimeout(() => {
+        setWidgetFlash(false);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [latest.close, latest.high, latest.low, thresholdPrice, isThresholdActive, thresholdCondition, isTriggered, onThresholdHit]);
+
+  const handleSimulateFlash = () => {
+    setIsTriggered(true);
+    setWidgetFlash(true);
+    const nowTime = new Date().toLocaleTimeString();
+    setTriggerHistory((prev) => [
+      { price: thresholdPrice, time: nowTime, target: thresholdPrice },
+      ...prev.slice(0, 9),
+    ]);
+    playTerminalAlarm();
+    onThresholdHit?.(thresholdPrice, thresholdPrice);
+
+    setTimeout(() => {
+      setWidgetFlash(false);
+    }, 4000);
+  };
+
+  const handleReArm = () => {
+    setIsTriggered(false);
+    setWidgetFlash(false);
+    lastEvaluatedCloseRef.current = latest.close;
   };
 
   // Build Technical Polylines
@@ -431,8 +563,243 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
               CROSSHAIR
             </button>
           </div>
+
+          {/* Price Threshold Alarm Trigger & Config */}
+          <div className="flex items-center gap-1 bg-neutral-950 p-0.5 rounded border border-neutral-800 text-[10px]">
+            <button
+              onClick={() => {
+                if (!isThresholdActive) {
+                  setIsThresholdActive(true);
+                  setIsTriggered(false);
+                } else {
+                  setIsThresholdActive(false);
+                  setIsPlaceMode(false);
+                }
+              }}
+              className={`px-2 py-0.5 rounded flex items-center gap-1.5 transition-all ${
+                isThresholdActive
+                  ? isTriggered
+                    ? 'bg-rose-600 text-white font-black animate-pulse shadow-[0_0_12px_rgba(244,63,94,0.6)]'
+                    : 'bg-rose-500/25 text-rose-300 font-bold border border-rose-500/40 shadow-[0_0_8px_rgba(244,63,94,0.2)]'
+                  : 'text-neutral-500 hover:text-neutral-300'
+              }`}
+              title="Toggle Horizontal Price Threshold Alert Line (Flashes terminal on hit)"
+            >
+              {isTriggered ? (
+                <BellRing className="w-3 h-3 text-white animate-bounce" />
+              ) : (
+                <Bell className={`w-3 h-3 ${isThresholdActive ? 'text-rose-400' : 'text-neutral-500'}`} />
+              )}
+              <span>LIMIT ${thresholdPrice.toFixed(2)}</span>
+              {isTriggered && (
+                <span className="bg-white text-rose-600 px-1 py-0.2 rounded font-black text-[8px] animate-ping">
+                  HIT
+                </span>
+              )}
+            </button>
+
+            {isThresholdActive && (
+              <>
+                <button
+                  onClick={() => setIsPlaceMode(!isPlaceMode)}
+                  className={`px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors ${
+                    isPlaceMode
+                      ? 'bg-amber-500 text-black font-bold shadow-[0_0_8px_rgba(245,158,11,0.5)]'
+                      : 'text-neutral-400 hover:text-amber-300 hover:bg-neutral-900'
+                  }`}
+                  title="Click anywhere on the chart canvas to place the threshold line"
+                >
+                  <Target className="w-3 h-3" />
+                  <span className="hidden sm:inline">PLACE</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    const newPrice = Math.round((thresholdPrice - 0.5) * 100) / 100;
+                    setThresholdPrice(newPrice);
+                    setIsTriggered(false);
+                  }}
+                  className="px-1 py-0.5 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded font-mono font-bold"
+                  title="Decrease threshold by $0.50"
+                >
+                  -0.5
+                </button>
+
+                <button
+                  onClick={() => {
+                    const newPrice = Math.round((thresholdPrice + 0.5) * 100) / 100;
+                    setThresholdPrice(newPrice);
+                    setIsTriggered(false);
+                  }}
+                  className="px-1 py-0.5 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded font-mono font-bold"
+                  title="Increase threshold by $0.50"
+                >
+                  +0.5
+                </button>
+
+                <button
+                  onClick={() => {
+                    setThresholdPrice(latest.close);
+                    setIsTriggered(false);
+                  }}
+                  className="px-1.5 py-0.5 text-neutral-400 hover:text-emerald-300 hover:bg-neutral-800 rounded font-mono text-[9px]"
+                  title="Snap threshold to current market price"
+                >
+                  AT LAST
+                </button>
+
+                <button
+                  onClick={handleSimulateFlash}
+                  className="px-1.5 py-0.5 bg-rose-950/70 hover:bg-rose-900 text-rose-300 hover:text-white border border-rose-800/80 rounded flex items-center gap-1 font-semibold transition-colors"
+                  title="Simulate price hitting threshold to flash the terminal immediately"
+                >
+                  <Zap className="w-2.5 h-2.5 text-amber-400" />
+                  <span className="hidden md:inline">TEST FLASH</span>
+                </button>
+
+                {isTriggered && (
+                  <button
+                    onClick={handleReArm}
+                    className="px-1.5 py-0.5 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-700 rounded flex items-center gap-1 font-bold transition-colors"
+                    title="Re-arm threshold alert for next price crossing"
+                  >
+                    <RotateCcw className="w-2.5 h-2.5" />
+                    RE-ARM
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setShowThresholdSettings(!showThresholdSettings)}
+                  className={`px-1 py-0.5 rounded transition-colors ${showThresholdSettings ? 'bg-neutral-800 text-white' : 'text-neutral-400 hover:text-white'}`}
+                  title="More threshold alert settings & trigger log"
+                >
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Threshold Alert Settings Panel (if toggled open) */}
+      {showThresholdSettings && isThresholdActive && (
+        <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 rounded bg-neutral-950 border border-rose-950/90 text-[11px] font-mono shadow-lg">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-rose-300 font-bold flex items-center gap-1.5">
+              <Bell className="w-3.5 h-3.5 text-rose-400" />
+              THRESHOLD PRICE:
+            </span>
+            <div className="flex items-center gap-1">
+              <span className="text-neutral-500">$</span>
+              <input
+                type="number"
+                step="0.10"
+                value={thresholdPrice}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  if (!isNaN(val)) {
+                    setThresholdPrice(Math.round(val * 100) / 100);
+                    setIsTriggered(false);
+                  }
+                }}
+                className="w-20 bg-neutral-900 border border-neutral-700 rounded px-1.5 py-0.5 text-white font-mono font-bold text-xs focus:outline-none focus:border-rose-500"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5 text-[10px]">
+              <span className="text-neutral-400">CONDITION:</span>
+              {(['cross', 'above', 'below'] as const).map((cond) => (
+                <button
+                  key={cond}
+                  onClick={() => {
+                    setThresholdCondition(cond);
+                    setIsTriggered(false);
+                  }}
+                  className={`px-2 py-0.5 rounded text-[10px] uppercase font-semibold transition-colors ${
+                    thresholdCondition === cond
+                      ? 'bg-rose-500 text-white'
+                      : 'bg-neutral-900 text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  {cond === 'cross' ? 'HIT / CROSS' : cond === 'above' ? '≥ ABOVE' : '≤ BELOW'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 text-[10px]">
+            <span className="text-neutral-500">
+              DISTANCE: <strong className={latest.close >= thresholdPrice ? 'text-emerald-400' : 'text-rose-400'}>
+                {latest.close >= thresholdPrice ? '+' : ''}{(latest.close - thresholdPrice).toFixed(2)} ({(((latest.close - thresholdPrice) / thresholdPrice) * 100).toFixed(2)}%)
+              </strong>
+            </span>
+            <button
+              onClick={() => setShowThresholdSettings(false)}
+              className="p-1 text-neutral-500 hover:text-white rounded"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Triggered Alarm Notification Banner */}
+      {isTriggered && (
+        <div className="flex items-center justify-between gap-3 px-3 py-2 rounded bg-gradient-to-r from-rose-950 via-rose-900/90 to-rose-950 border-2 border-rose-500 text-rose-100 text-[11px] font-mono shadow-[0_0_25px_rgba(244,63,94,0.5)] animate-pulse">
+          <div className="flex items-center gap-2.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-rose-400 animate-ping" />
+            <span className="font-extrabold text-white tracking-wider bg-rose-950/80 px-1.5 py-0.5 rounded border border-rose-600">
+              ⚡ PRICE THRESHOLD HIT
+            </span>
+            <span>
+              AAPL touched <strong className="text-rose-300 font-bold">${latest.close.toFixed(2)}</strong> (Limit Level: <strong className="text-white">${thresholdPrice.toFixed(2)}</strong>)
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleReArm}
+              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold text-[10px] tracking-wide transition-colors flex items-center gap-1 shadow-md cursor-pointer"
+            >
+              <RotateCcw className="w-3 h-3" />
+              RE-ARM ALERT
+            </button>
+            <button
+              onClick={() => {
+                setIsTriggered(false);
+                setWidgetFlash(false);
+              }}
+              className="px-2 py-1 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 rounded text-[10px] cursor-pointer"
+            >
+              DISMISS
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Place Mode Active Banner */}
+      {isPlaceMode && (
+        <div className="flex items-center justify-between gap-3 px-3 py-1.5 rounded bg-amber-950/80 border border-amber-500 text-amber-200 text-[11px] font-mono shadow-[0_0_15px_rgba(245,158,11,0.3)]">
+          <div className="flex items-center gap-2">
+            <Target className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+            <span className="font-bold">PLACEMENT MODE ACTIVE:</span>
+            <span>Move cursor over chart and click any price level to set threshold line</span>
+            {previewPrice !== null && (
+              <span className="bg-amber-500 text-black px-1.5 py-0.2 rounded font-bold">
+                ${previewPrice.toFixed(2)}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => {
+              setIsPlaceMode(false);
+              setPreviewPrice(null);
+            }}
+            className="px-2 py-0.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 rounded text-[10px]"
+          >
+            CANCEL
+          </button>
+        </div>
+      )}
 
       {/* Active Crosshair Inspection Readout */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-1.5 rounded bg-neutral-950 border border-neutral-800/80 text-[11px]">
@@ -488,11 +855,41 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
       </div>
 
       {/* SVG Canvas Area */}
-      <div className="relative w-full bg-[#05090c] rounded border border-neutral-800/80 overflow-hidden">
+      <div className={`relative w-full bg-[#05090c] rounded border transition-all duration-300 overflow-hidden ${
+        widgetFlash
+          ? 'border-rose-500 shadow-[0_0_30px_rgba(244,63,94,0.6)] bg-[#100407]'
+          : isTriggered
+            ? 'border-rose-700 shadow-[0_0_16px_rgba(244,63,94,0.3)]'
+            : 'border-neutral-800/80'
+      }`}>
         <svg
+          ref={svgRef}
           viewBox={`0 0 ${svgWidth} ${subBottom + 24}`}
-          className="w-full h-auto select-none"
+          className={`w-full h-auto select-none ${isPlaceMode ? 'cursor-crosshair' : isDraggingThreshold ? 'cursor-ns-resize' : ''}`}
           style={{ minHeight: '320px' }}
+          onClick={(e) => {
+            if (isPlaceMode) {
+              const { y } = getSvgCoordinates(e);
+              const newPrice = getPriceFromY(y);
+              setThresholdPrice(newPrice);
+              setIsThresholdActive(true);
+              setIsPlaceMode(false);
+              setIsTriggered(false);
+              setWidgetFlash(false);
+            }
+          }}
+          onMouseMove={(e) => {
+            if (isPlaceMode) {
+              const { y } = getSvgCoordinates(e);
+              const newPrice = getPriceFromY(y);
+              setPreviewPrice(newPrice);
+            }
+          }}
+          onMouseLeave={() => {
+            if (isPlaceMode) {
+              setPreviewPrice(null);
+            }
+          }}
         >
           <defs>
             {/* Area gradient for AAPL Price */}
@@ -1226,6 +1623,92 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
             )}
           </g>
 
+          {/* HORIZONTAL PRICE THRESHOLD ALERT LINE */}
+          {isThresholdActive && thresholdPrice !== null && (() => {
+            const yThresh = getY(thresholdPrice);
+            const clampedY = Math.max(padTop + 1, Math.min(mainPanelBaseline - 1, yThresh));
+            const dist = latest.close - thresholdPrice;
+            const isHit = isTriggered;
+
+            return (
+              <g id="horizontal-price-threshold-overlay" className="select-none">
+                {/* Flashing glow aura line */}
+                <line
+                  x1={padLeft}
+                  y1={clampedY}
+                  x2={svgWidth - padRight}
+                  y2={clampedY}
+                  stroke={isHit ? '#f43f5e' : '#ec4899'}
+                  strokeWidth={isHit ? 9 : 4}
+                  strokeOpacity={isHit ? 0.6 : 0.25}
+                  strokeLinecap="round"
+                />
+
+                {/* Crisp Primary Neon Alert Line */}
+                <line
+                  x1={padLeft}
+                  y1={clampedY}
+                  x2={svgWidth - padRight}
+                  y2={clampedY}
+                  stroke={isHit ? '#ff0055' : '#f43f5e'}
+                  strokeWidth={isHit ? 2.5 : 1.8}
+                  strokeDasharray={isHit ? 'none' : '5,3'}
+                  strokeOpacity="0.95"
+                />
+
+                {/* Left Alert Badge Pill */}
+                <g transform={`translate(${padLeft + 4}, ${clampedY - 9})`} pointerEvents="none">
+                  <rect
+                    x="0"
+                    y="0"
+                    width={isHit ? 140 : 124}
+                    height="18"
+                    rx="3"
+                    fill={isHit ? '#881337' : '#1b0914'}
+                    stroke={isHit ? '#f43f5e' : '#ec4899'}
+                    strokeWidth="1.2"
+                  />
+                  <circle
+                    cx="9"
+                    cy="9"
+                    r="3.5"
+                    fill={isHit ? '#ff0055' : '#f43f5e'}
+                    className={isHit ? 'animate-ping' : ''}
+                  />
+                  <circle cx="9" cy="9" r="2" fill="#ffffff" />
+                  <text
+                    x="17"
+                    y="12.5"
+                    fill="#ffffff"
+                    fontSize="8.5"
+                    fontFamily="monospace"
+                    fontWeight="bold"
+                    letterSpacing="0.04em"
+                  >
+                    {isHit ? '⚡ LIMIT HIT: ' : '🚨 ALRT: '}${thresholdPrice.toFixed(2)}
+                  </text>
+                  <text
+                    x={isHit ? 114 : 96}
+                    y="12.5"
+                    fill={isHit ? '#fecdd3' : '#f472b6'}
+                    fontSize="7"
+                    fontFamily="monospace"
+                  >
+                    {dist >= 0 ? `+${dist.toFixed(2)}` : dist.toFixed(2)}
+                  </text>
+                </g>
+
+                {/* Pulsing radar rings if hit/triggered */}
+                {isHit && (
+                  <g transform={`translate(${padLeft + usableWidth - 25}, ${clampedY})`} pointerEvents="none">
+                    <circle r="12" fill="none" stroke="#f43f5e" strokeWidth="2" className="animate-ping" />
+                    <circle r="5" fill="#ff0055" />
+                  </g>
+                )}
+              </g>
+            );
+          })()}
+
           {/* Dynamic Cursor Crosshair with exact Price, RSI, and Timestamp highlights */}
           {showCrosshair && hoveredCandle && (() => {
             const hoveredIdx = candles.findIndex((c) => c.date === hoveredCandle.date);
@@ -1662,6 +2145,133 @@ export function AaplChartWidget({ candles, liveFlash }: AaplChartWidgetProps) {
               />
             );
           })}
+
+          {/* Interactive Draggable Threshold Handle & Target Badge on Right Margin */}
+          {isThresholdActive && thresholdPrice !== null && (() => {
+            const yThresh = getY(thresholdPrice);
+            const clampedY = Math.max(padTop + 1, Math.min(mainPanelBaseline - 1, yThresh));
+            const isHit = isTriggered;
+
+            return (
+              <g
+                id="threshold-interactive-layer"
+                className="select-none"
+              >
+                {/* Wide invisible drag line across full chart width */}
+                <line
+                  x1={padLeft}
+                  y1={clampedY}
+                  x2={svgWidth - padRight}
+                  y2={clampedY}
+                  stroke="transparent"
+                  strokeWidth="20"
+                  className="cursor-ns-resize"
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    setIsDraggingThreshold(true);
+                  }}
+                  title="Drag up or down to adjust threshold level"
+                />
+
+                {/* Right Axis Draggable Handle Badge */}
+                <g
+                  transform={`translate(${svgWidth - padRight + 2}, ${clampedY - 9})`}
+                  className="cursor-ns-resize"
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    setIsDraggingThreshold(true);
+                  }}
+                  title="Click and drag to reposition alert threshold"
+                >
+                  {isHit && (
+                    <rect
+                      x="-2"
+                      y="-2"
+                      width="62"
+                      height="22"
+                      rx="4"
+                      fill="none"
+                      stroke="#f43f5e"
+                      strokeWidth="1.5"
+                      className="animate-ping"
+                    />
+                  )}
+                  <rect
+                    x="0"
+                    y="0"
+                    width="58"
+                    height="18"
+                    rx="3"
+                    fill={isHit ? '#e11d48' : '#be185d'}
+                    stroke={isHit ? '#ffffff' : '#fda4af'}
+                    strokeWidth="1.2"
+                    className={`transition-all hover:brightness-125 ${isDraggingThreshold ? 'brightness-125' : ''}`}
+                  />
+                  <text
+                    x="5"
+                    y="12.5"
+                    fill="#ffffff"
+                    fontSize="9"
+                    fontFamily="monospace"
+                    fontWeight="bold"
+                    opacity="0.9"
+                  >
+                    ↕
+                  </text>
+                  <text
+                    x="33"
+                    y="12.5"
+                    textAnchor="middle"
+                    fill="#ffffff"
+                    fontSize="8.5"
+                    fontFamily="monospace"
+                    fontWeight="bold"
+                  >
+                    ${thresholdPrice.toFixed(2)}
+                  </text>
+                </g>
+              </g>
+            );
+          })()}
+
+          {/* Placement Preview Guide Line when isPlaceMode is active */}
+          {isPlaceMode && previewPrice !== null && (() => {
+            const yPreview = getY(previewPrice);
+            return (
+              <g id="threshold-placement-preview" pointerEvents="none">
+                <line
+                  x1={padLeft}
+                  y1={yPreview}
+                  x2={svgWidth - padRight}
+                  y2={yPreview}
+                  stroke="#f43f5e"
+                  strokeWidth="2"
+                  strokeDasharray="4,4"
+                  strokeOpacity="0.9"
+                />
+                <rect
+                  x={padLeft + 8}
+                  y={yPreview - 18}
+                  width="185"
+                  height="16"
+                  rx="2"
+                  fill="#1a0b14"
+                  stroke="#f43f5e"
+                  strokeWidth="1"
+                />
+                <text
+                  x={padLeft + 14}
+                  y={yPreview - 6.5}
+                  fill="#fda4af"
+                  fontSize="8"
+                  fontFamily="monospace"
+                  fontWeight="bold"
+                >
+                  🎯 CLICK TO SET THRESHOLD: ${previewPrice.toFixed(2)}
+                </text>
+              </g>
+            );
+          })()}
         </svg>
       </div>
 

@@ -33,3 +33,40 @@ export function playTerminalTick(isBullish: boolean = true) {
     // Gracefully ignore audio errors if autoplay blocked
   }
 }
+
+export function playTerminalAlarm() {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    if (!audioCtx) {
+      audioCtx = new AudioContextClass();
+    }
+
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+
+    const t = audioCtx.currentTime;
+    const freqs = [880, 1174.66, 1760];
+    freqs.forEach((freq, idx) => {
+      const startTime = t + idx * 0.08;
+      const osc = audioCtx!.createOscillator();
+      const gain = audioCtx!.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq, startTime);
+
+      gain.gain.setValueAtTime(0.04, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.07);
+
+      osc.connect(gain);
+      gain.connect(audioCtx!.destination);
+
+      osc.start(startTime);
+      osc.stop(startTime + 0.075);
+    });
+  } catch (err) {
+    // Gracefully ignore audio errors
+  }
+}

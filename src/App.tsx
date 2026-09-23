@@ -17,7 +17,7 @@ import {
   calculateWorldSessions 
 } from './services/dataAdapter';
 import { generateOfflineZip } from './services/exportBundle';
-import { playTerminalTick } from './services/soundEffects';
+import { playTerminalTick, playTerminalAlarm } from './services/soundEffects';
 import { TerminalHeader } from './components/TerminalHeader';
 import { CanvasGrid } from './components/CanvasGrid';
 import { WorldSessionClocksWidget } from './components/widgets/WorldSessionClocksWidget';
@@ -144,6 +144,14 @@ export default function App() {
   const [flashTickers, setFlashTickers] = useState<Set<string>>(new Set());
   const [aaplFlash, setAaplFlash] = useState<boolean>(false);
 
+  // Terminal Price Threshold Alert Flash State
+  const [terminalAlertFlash, setTerminalAlertFlash] = useState<{
+    symbol: string;
+    price: number;
+    threshold: number;
+    time: string;
+  } | null>(null);
+
   // Terminal log stream
   const [alerts, setAlerts] = useState<TerminalAlert[]>([
     { id: '1', timestamp: '15:42:01.210', level: 'NOTICE', source: 'NASDAQ', text: 'AAPL BLOCK TRADE: 15,000 SHARES @ $231.40 EX:NSDQ' },
@@ -155,6 +163,49 @@ export default function App() {
   // Audio ref to avoid stale state in timer
   const audioEnabledRef = useRef(audioEnabled);
   audioEnabledRef.current = audioEnabled;
+
+  // Threshold alert trigger handler that flashes the entire terminal
+  const handleAaplThresholdHit = useCallback((price: number, threshold: number) => {
+    const now = new Date();
+    const timeStr = `${now.toISOString().substring(11, 19)}.${Math.floor(Math.random() * 900 + 100)}`;
+
+    setTerminalAlertFlash({
+      symbol: 'AAPL',
+      price,
+      threshold,
+      time: timeStr,
+    });
+
+    if (audioEnabledRef.current) {
+      playTerminalAlarm();
+    }
+
+    setAlerts((prev) => [
+      {
+        id: String(Date.now()),
+        timestamp: timeStr,
+        level: 'SPIKE',
+        source: 'THRESHOLD-HIT',
+        text: `⚠️ AAPL PRICE THRESHOLD TRIGGERED: Reached $${price.toFixed(2)} (Alert Limit: $${threshold.toFixed(2)})`,
+      },
+      ...prev.slice(0, 50),
+    ]);
+
+    setTimeout(() => {
+      setTerminalAlertFlash(null);
+    }, 4500);
+  }, []);
+
+  useEffect(() => {
+    const handleGlobalAlert = (e: any) => {
+      const detail = e.detail;
+      if (detail && detail.price) {
+        handleAaplThresholdHit(detail.price, detail.threshold);
+      }
+    };
+    window.addEventListener('terminal-price-threshold-hit', handleGlobalAlert);
+    return () => window.removeEventListener('terminal-price-threshold-hit', handleGlobalAlert);
+  }, [handleAaplThresholdHit]);
 
   // Real-time clock and Session update loop (every 1000ms)
   useEffect(() => {
@@ -437,7 +488,13 @@ export default function App() {
       case 'world_clocks':
         return <WorldSessionClocksWidget sessions={worldSessions} utcHours={utcHours} />;
       case 'aapl_chart':
-        return <AaplChartWidget candles={aaplData} liveFlash={aaplFlash} />;
+        return (
+          <AaplChartWidget 
+            candles={aaplData} 
+            liveFlash={aaplFlash} 
+            onThresholdHit={handleAaplThresholdHit} 
+          />
+        );
       case 'sector_heatmap':
         return <HeatmapWidget stocks={heatmapData} flashTickers={flashTickers} />;
       case 'global_indices':
@@ -453,6 +510,40 @@ export default function App() {
 
   return (
     <div className={`min-h-screen bg-[#030608] text-slate-200 selection:bg-emerald-500/30 selection:text-emerald-200 terminal-grid ${crtEnabled ? 'crt-effect' : ''}`}>
+      {/* Terminal Alert Flash Overlay (Triggered when price hits threshold level) */}
+      {terminalAlertFlash && (
+        <div className="fixed inset-0 pointer-events-none z-50 transition-all duration-300">
+          {/* Strobe perimeter flashing border */}
+          <div className="absolute inset-0 border-[4px] sm:border-[8px] border-rose-500 shadow-[inset_0_0_120px_rgba(244,63,94,0.45)] animate-pulse bg-rose-500/10" />
+
+          {/* Floating warning HUD card at top center */}
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 pointer-events-auto flex items-center gap-3.5 bg-[#0a0507]/95 border-2 border-rose-500 text-rose-100 px-4 py-2.5 rounded-lg shadow-[0_0_35px_rgba(244,63,94,0.75)] font-mono text-xs backdrop-blur-md animate-bounce">
+            <div className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
+              <span className="font-extrabold tracking-widest text-rose-400 uppercase text-[11px] bg-rose-950/80 px-1.5 py-0.5 rounded border border-rose-800">
+                ⚡ TERMINAL THRESHOLD HIT
+              </span>
+              <span className="font-semibold text-white">
+                AAPL touched <span className="text-rose-300 font-bold">${terminalAlertFlash.price.toFixed(2)}</span>
+              </span>
+              <span className="text-rose-300/80 text-[10px]">
+                [Alert Level: ${terminalAlertFlash.threshold.toFixed(2)} • {terminalAlertFlash.time}]
+              </span>
+            </div>
+            <button
+              onClick={() => setTerminalAlertFlash(null)}
+              className="ml-2 px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded font-bold text-[10px] tracking-wide transition-colors cursor-pointer"
+              title="Dismiss Terminal Alert Flash"
+            >
+              DISMISS
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Top terminal status & controls bar */}
       <TerminalHeader
         adapterMode={adapterMode}
