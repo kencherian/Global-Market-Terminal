@@ -277,6 +277,252 @@ Return an accurate, realistic Market Sentiment evaluation JSON matching the spec
   }
 });
 
+// Endpoint: Real-Time Simulated Market News Wire Feed
+app.get('/api/market-news', async (req, res) => {
+  try {
+    const sector = (req.query.sector as string || 'ALL').toUpperCase();
+    const query = (req.query.q as string || '').toLowerCase().trim();
+    const generateWithAi = req.query.ai === 'true';
+
+    // Curated rich financial news database
+    const allHeadlines = [
+      {
+        id: 'news-srv-1',
+        timestamp: new Date(Date.now() - 40 * 1000).toISOString(),
+        timeStr: new Date(Date.now() - 40 * 1000).toTimeString().split(' ')[0],
+        sector: 'TECH',
+        headline: 'NVDA: Enterprise AI accelerator rack demand exceeds $14B order backlog into Q3',
+        summary: 'Hyperscaler capital expenditures continue to fuel semiconductor order momentum with tier-1 cloud providers expanding multi-gigawatt cluster deployments.',
+        source: 'BLOOMBERG',
+        tickers: ['NVDA', 'MSFT', 'GOOGL'],
+        sentiment: 'BULLISH',
+        urgency: 'BREAKING',
+        impactScore: 9,
+      },
+      {
+        id: 'news-srv-2',
+        timestamp: new Date(Date.now() - 100 * 1000).toISOString(),
+        timeStr: new Date(Date.now() - 100 * 1000).toTimeString().split(' ')[0],
+        sector: 'MACRO',
+        headline: 'US Core PCE deflator matches 2.6% consensus; easing timeline preserved',
+        summary: 'Consumer price expenditures print in line with market consensus forecasts, allowing FOMC policymakers latitude to sustain steady benchmark rates.',
+        source: 'REUTERS',
+        tickers: ['SPX', 'NDX', 'US10Y'],
+        sentiment: 'BULLISH',
+        urgency: 'ALERT',
+        impactScore: 8,
+      },
+      {
+        id: 'news-srv-3',
+        timestamp: new Date(Date.now() - 180 * 1000).toISOString(),
+        timeStr: new Date(Date.now() - 180 * 1000).toTimeString().split(' ')[0],
+        sector: 'TECH',
+        headline: 'AAPL: Silicon photonics patent filings surge for next-gen Neural Engine packaging',
+        summary: 'Supply-chain verification confirms advanced packaging contracts with leading Taiwanese OSAT facilities for sub-2nm chiplet architectures.',
+        source: 'DJ WIRES',
+        tickers: ['AAPL', 'TSM'],
+        sentiment: 'BULLISH',
+        urgency: 'UPDATE',
+        impactScore: 7,
+      },
+      {
+        id: 'news-srv-4',
+        timestamp: new Date(Date.now() - 260 * 1000).toISOString(),
+        timeStr: new Date(Date.now() - 260 * 1000).toTimeString().split(' ')[0],
+        sector: 'ENERGY',
+        headline: 'WTI Crude firms near $74.80/bbl as OPEC+ delegates confirm production discipline',
+        summary: 'Voluntary export limitations remain strictly adhered to across key Gulf producers, offsetting modest US weekly inventory build.',
+        source: 'BLOOMBERG',
+        tickers: ['XOM', 'CVX', 'USO'],
+        sentiment: 'NEUTRAL',
+        urgency: 'UPDATE',
+        impactScore: 6,
+      },
+      {
+        id: 'news-srv-5',
+        timestamp: new Date(Date.now() - 340 * 1000).toISOString(),
+        timeStr: new Date(Date.now() - 340 * 1000).toTimeString().split(' ')[0],
+        sector: 'FINANCIALS',
+        headline: 'JPM: Global Markets desk reports record equity options flow and risk-parity bid',
+        summary: 'Institutional trading desks observe broad-based systematic rebalancing into mega-cap equities following treasury curve stabilization.',
+        source: 'REUTERS',
+        tickers: ['JPM', 'GS', 'MS'],
+        sentiment: 'BULLISH',
+        urgency: 'FLASH',
+        impactScore: 7,
+      },
+      {
+        id: 'news-srv-6',
+        timestamp: new Date(Date.now() - 460 * 1000).toISOString(),
+        timeStr: new Date(Date.now() - 460 * 1000).toTimeString().split(' ')[0],
+        sector: 'METALS',
+        headline: 'GOLD: Spot bullion tests $2,780/oz as central banks absorb 44 metric tonnes in monthly reserves',
+        summary: 'Sovereign foreign reserve diversification continues at an elevated pace across Asian and Eastern European monetary authorities.',
+        source: 'DJ WIRES',
+        tickers: ['XAU', 'GLD', 'NEM'],
+        sentiment: 'BULLISH',
+        urgency: 'ALERT',
+        impactScore: 8,
+      },
+      {
+        id: 'news-srv-7',
+        timestamp: new Date(Date.now() - 590 * 1000).toISOString(),
+        timeStr: new Date(Date.now() - 590 * 1000).toTimeString().split(' ')[0],
+        sector: 'HEALTHCARE',
+        headline: 'LLY: Phase 3 oral obesity candidate meets secondary endpoint with 14.8% weight reduction',
+        summary: 'Clinical trial readout shows favorable safety tolerability profile with zero drug-related discontinuations in 48-week cohort.',
+        source: 'SEC EDGAR',
+        tickers: ['LLY', 'NVO'],
+        sentiment: 'BULLISH',
+        urgency: 'BREAKING',
+        impactScore: 8,
+      },
+      {
+        id: 'news-srv-8',
+        timestamp: new Date(Date.now() - 720 * 1000).toISOString(),
+        timeStr: new Date(Date.now() - 720 * 1000).toTimeString().split(' ')[0],
+        sector: 'CONSUMER',
+        headline: 'TSLA: Full Self-Driving v13 fleet data crosses 20 million incident-free highway miles',
+        summary: 'Autonomous driving telemetry submitted to national safety regulators shows intervention frequency dropped by 42% relative to previous build.',
+        source: 'CNBC',
+        tickers: ['TSLA'],
+        sentiment: 'BULLISH',
+        urgency: 'UPDATE',
+        impactScore: 7,
+      },
+      {
+        id: 'news-srv-9',
+        timestamp: new Date(Date.now() - 860 * 1000).toISOString(),
+        timeStr: new Date(Date.now() - 860 * 1000).toTimeString().split(' ')[0],
+        sector: 'MACRO',
+        headline: 'US 10-Year Treasury yield eases 3.4 bps to 4.24% following strong 7-year auction bid',
+        summary: 'Indirect bidding participation reached 71.4%, signaling sustained sovereign appetite for long-dated dollar-denominated debt.',
+        source: 'FED WIRE',
+        tickers: ['US10Y', 'TLT', 'IEF'],
+        sentiment: 'BULLISH',
+        urgency: 'FLASH',
+        impactScore: 6,
+      },
+      {
+        id: 'news-srv-10',
+        timestamp: new Date(Date.now() - 1000 * 1000).toISOString(),
+        timeStr: new Date(Date.now() - 1000 * 1000).toTimeString().split(' ')[0],
+        sector: 'FINANCIALS',
+        headline: 'BAC: Commercial loan demand expands +4.2% YoY with zero uptick in non-performing assets',
+        summary: 'Middle-market corporate credit facilities demonstrate healthy operational liquidity and minimal refinancing distress.',
+        source: 'BLOOMBERG',
+        tickers: ['BAC', 'WFC'],
+        sentiment: 'BULLISH',
+        urgency: 'UPDATE',
+        impactScore: 6,
+      },
+      {
+        id: 'news-srv-11',
+        timestamp: new Date(Date.now() - 1180 * 1000).toISOString(),
+        timeStr: new Date(Date.now() - 1180 * 1000).toTimeString().split(' ')[0],
+        sector: 'TECH',
+        headline: 'TSMC: 2nm trial wafer runs achieve 89% target yield; commercial ramp slated for H2',
+        summary: 'Leading foundry partner confirms high-volume fab equipment installations progressing ahead of schedule in Hsinchu and Kaohsiung.',
+        source: 'REUTERS',
+        tickers: ['TSM', 'AAPL', 'AMD'],
+        sentiment: 'BULLISH',
+        urgency: 'ALERT',
+        impactScore: 8,
+      },
+      {
+        id: 'news-srv-12',
+        timestamp: new Date(Date.now() - 1340 * 1000).toISOString(),
+        timeStr: new Date(Date.now() - 1340 * 1000).toTimeString().split(' ')[0],
+        sector: 'ENERGY',
+        headline: 'NATURAL GAS: Henry Hub contract slips 2.8% on mild weather forecast across Midwest',
+        summary: 'Working gas in storage remains 8% above five-year average, maintaining downward pressure on near-term spot contracts.',
+        source: 'DJ WIRES',
+        tickers: ['UNG', 'EQT'],
+        sentiment: 'BEARISH',
+        urgency: 'UPDATE',
+        impactScore: 5,
+      },
+      {
+        id: 'news-srv-13',
+        timestamp: new Date(Date.now() - 1520 * 1000).toISOString(),
+        timeStr: new Date(Date.now() - 1520 * 1000).toTimeString().split(' ')[0],
+        sector: 'METALS',
+        headline: 'COPPER: LME warehouse inventories drop to 5-month low amid grid expansion demand',
+        summary: 'Accelerated global data center grid upgrades and renewable interconnects drive sustained physical copper cathode premiums.',
+        source: 'BLOOMBERG',
+        tickers: ['COPPER', 'FCX'],
+        sentiment: 'BULLISH',
+        urgency: 'FLASH',
+        impactScore: 7,
+      },
+      {
+        id: 'news-srv-14',
+        timestamp: new Date(Date.now() - 1700 * 1000).toISOString(),
+        timeStr: new Date(Date.now() - 1700 * 1000).toTimeString().split(' ')[0],
+        sector: 'CONSUMER',
+        headline: 'AMZN: Regional delivery fulfillment unit costs decline 4.8% via AI robotics sortation',
+        summary: 'Automated package handling networks deployed across 120 fulfillment centers lower per-unit outbound shipping expenses.',
+        source: 'REUTERS',
+        tickers: ['AMZN'],
+        sentiment: 'BULLISH',
+        urgency: 'UPDATE',
+        impactScore: 7,
+      },
+      {
+        id: 'news-srv-15',
+        timestamp: new Date(Date.now() - 1880 * 1000).toISOString(),
+        timeStr: new Date(Date.now() - 1880 * 1000).toTimeString().split(' ')[0],
+        sector: 'HEALTHCARE',
+        headline: 'UNH: Medical loss ratio stabilizes at 83.1%; corporate medical membership rises',
+        summary: 'Commercial health plan underwriting results indicate controlled utilization rates across outpatient and prescription claims.',
+        source: 'SEC EDGAR',
+        tickers: ['UNH', 'CVS'],
+        sentiment: 'NEUTRAL',
+        urgency: 'ALERT',
+        impactScore: 6,
+      },
+      {
+        id: 'news-srv-16',
+        timestamp: new Date(Date.now() - 2050 * 1000).toISOString(),
+        timeStr: new Date(Date.now() - 2050 * 1000).toTimeString().split(' ')[0],
+        sector: 'MACRO',
+        headline: 'ECB: Governing Council signals gradual easing cycle as wage growth decelerates to 3.1%',
+        summary: 'Frankfurt policymakers note cooling unit labor costs provide room for measured policy accommodation into autumn.',
+        source: 'BLOOMBERG',
+        tickers: ['EURUSD', 'DAX', 'CAC'],
+        sentiment: 'NEUTRAL',
+        urgency: 'UPDATE',
+        impactScore: 6,
+      },
+    ];
+
+    let filtered = allHeadlines;
+    if (sector && sector !== 'ALL') {
+      filtered = filtered.filter((h) => h.sector === sector);
+    }
+    if (query) {
+      filtered = filtered.filter((h) => 
+        h.headline.toLowerCase().includes(query) ||
+        h.summary.toLowerCase().includes(query) ||
+        h.source.toLowerCase().includes(query) ||
+        h.tickers.some((t) => t.toLowerCase().includes(query))
+      );
+    }
+
+    return res.json({
+      status: 'OK',
+      sector,
+      query,
+      count: filtered.length,
+      headlines: filtered,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.error('Error in /api/market-news:', err);
+    return res.status(500).json({ error: 'Failed to fetch market news' });
+  }
+});
+
 // Dev vs Production Server Setup
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';

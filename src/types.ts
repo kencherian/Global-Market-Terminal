@@ -84,7 +84,36 @@ export type WidgetType =
   | 'aapl_chart'
   | 'precious_metals'
   | 'terminal_tape'
-  | 'market_sentiment';
+  | 'market_sentiment'
+  | 'market_news';
+
+export type NewsSector = 
+  | 'ALL'
+  | 'TECH'
+  | 'FINANCIALS'
+  | 'ENERGY'
+  | 'MACRO'
+  | 'HEALTHCARE'
+  | 'CONSUMER'
+  | 'METALS';
+
+export type NewsSentiment = 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+export type NewsUrgency = 'BREAKING' | 'ALERT' | 'UPDATE' | 'FLASH';
+
+export interface MarketNewsItem {
+  id: string;
+  timestamp: string; // ISO string or time string
+  timeStr: string;   // Display formatted time (e.g. 14:32:05)
+  sector: NewsSector;
+  headline: string;
+  summary: string;
+  source: string;    // 'BLOOMBERG' | 'REUTERS' | 'DJ WIRES' | 'SEC EDGAR' | 'FED WIRE' | 'CNBC'
+  tickers: string[];
+  sentiment: NewsSentiment;
+  urgency: NewsUrgency;
+  impactScore: number; // 1-10
+  isNew?: boolean;
+}
 
 export interface WidgetConfig {
   id: string;

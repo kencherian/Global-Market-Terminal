@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import { CandleData, MarketIndex, HeatmapStock, CommodityMetal } from '../types';
+import { INITIAL_NEWS_HEADLINES } from './newsService';
 
 export async function generateOfflineZip(
   aaplData: CandleData[],
@@ -15,6 +16,7 @@ export async function generateOfflineZip(
   dataFolder?.file('indices.json', JSON.stringify(indicesData, null, 2));
   dataFolder?.file('heatmap.json', JSON.stringify(heatmapData, null, 2));
   dataFolder?.file('metals.json', JSON.stringify(metalsData, null, 2));
+  dataFolder?.file('market_news.json', JSON.stringify(INITIAL_NEWS_HEADLINES, null, 2));
   dataFolder?.file('sentiment_baseline.json', JSON.stringify({
     score: 68,
     label: 'Bullish',

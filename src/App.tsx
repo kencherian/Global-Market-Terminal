@@ -29,8 +29,9 @@ import { AaplChartWidget } from './components/widgets/AaplChartWidget';
 import { PreciousMetalsWidget } from './components/widgets/PreciousMetalsWidget';
 import { TerminalTapeWidget } from './components/widgets/TerminalTapeWidget';
 import { MarketSentimentWidget } from './components/widgets/MarketSentimentWidget';
+import { MarketNewsWidget } from './components/widgets/MarketNewsWidget';
 
-const STORAGE_KEY = 'mkt_terminal_layout_v2';
+const STORAGE_KEY = 'mkt_terminal_layout_v3';
 
 const DEFAULT_WIDGETS: WidgetConfig[] = [
   {
@@ -48,6 +49,16 @@ const DEFAULT_WIDGETS: WidgetConfig[] = [
     type: 'market_sentiment',
     title: 'MARKET SENTIMENT & GEMINI QUANT ENGINE',
     category: 'AI SENTIMENT GAUGE',
+    colSpan: 2,
+    isVisible: true,
+    isMinimized: false,
+    isMaximized: false,
+  },
+  {
+    id: 'w-market-news',
+    type: 'market_news',
+    title: 'MARKET NEWS FEED // REAL-TIME WIRES',
+    category: 'REAL-TIME WIRES',
     colSpan: 2,
     isVisible: true,
     isMinimized: false,
@@ -111,7 +122,7 @@ export default function App() {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        const parsed = JSON.parse(saved);
+        let parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           const hasSentiment = parsed.some((w: WidgetConfig) => w.type === 'market_sentiment');
           if (!hasSentiment) {
@@ -125,7 +136,31 @@ export default function App() {
               isMinimized: false,
               isMaximized: false,
             };
-            return [parsed[0], sentimentWidget, ...parsed.slice(1)];
+            parsed = [parsed[0], sentimentWidget, ...parsed.slice(1)];
+          }
+
+          const hasNews = parsed.some((w: WidgetConfig) => w.type === 'market_news');
+          if (!hasNews) {
+            const newsWidget: WidgetConfig = {
+              id: 'w-market-news',
+              type: 'market_news',
+              title: 'MARKET NEWS FEED // REAL-TIME WIRES',
+              category: 'REAL-TIME WIRES',
+              colSpan: 2,
+              isVisible: true,
+              isMinimized: false,
+              isMaximized: false,
+            };
+            const sentimentIdx = parsed.findIndex((w: WidgetConfig) => w.type === 'market_sentiment');
+            if (sentimentIdx !== -1) {
+              parsed = [
+                ...parsed.slice(0, sentimentIdx + 1),
+                newsWidget,
+                ...parsed.slice(sentimentIdx + 1),
+              ];
+            } else {
+              parsed = [parsed[0], newsWidget, ...parsed.slice(1)];
+            }
           }
           return parsed;
         }
@@ -563,6 +598,13 @@ export default function App() {
             heatmapStocks={heatmapData}
             metals={metalsData}
             onBroadcastAlert={handleBroadcastAlert}
+          />
+        );
+      case 'market_news':
+        return (
+          <MarketNewsWidget
+            onBroadcastAlert={handleBroadcastAlert}
+            audioEnabled={audioEnabled}
           />
         );
       case 'aapl_chart':
