@@ -15,6 +15,12 @@ export async function generateOfflineZip(
   dataFolder?.file('indices.json', JSON.stringify(indicesData, null, 2));
   dataFolder?.file('heatmap.json', JSON.stringify(heatmapData, null, 2));
   dataFolder?.file('metals.json', JSON.stringify(metalsData, null, 2));
+  dataFolder?.file('sentiment_baseline.json', JSON.stringify({
+    score: 68,
+    label: 'Bullish',
+    headline: 'Expansionary index breadth and tech leadership drive risk-on sentiment',
+    source: 'gemini-3.8-flash'
+  }, null, 2));
 
   // Comprehensive README.md
   const readmeContent = `# Global Market Terminal Dashboard (Offline Edition)
@@ -41,25 +47,29 @@ This package is an offline-capable, Bloomberg/terminal-style financial dashboard
    \`\`\`
 
 ## Included Modules & Capabilities
-1. **World Session Clocks**:
+1. **Market Sentiment & Gemini Quant Engine**:
+   - Daily Market Sentiment Index (0-100) evaluated with Google Gemini and quantitative heuristic models.
+   - Semicircular color-coded radial speedometer gauge ranging from Extreme Bearish (0) to Extreme Bullish (100).
+   - Breakdown pillars: Technical Momentum, Market Breadth, Volatility Risk, Macro Climate.
+2. **World Session Clocks**:
    - Live synchronized market clocks for New York (NYSE/NASDAQ), London (LSE), Frankfurt (XETRA), Tokyo (TSE), Hong Kong (HKEX), and Sydney (ASX).
    - 24-hour UTC visual session overlap ribbons and real-time status (OPEN, PRE-MARKET, CLOSED).
-2. **Global Indices Monitor**:
+3. **Global Indices Monitor**:
    - Major benchmarks: S&P 500, NASDAQ 100, Dow Jones, FTSE 100, DAX 40, Nikkei 225, Hang Seng, Shanghai Composite, Nifty 50.
    - Micro SVG sparklines, volume indicators, and day range bars.
-3. **AI / Energy / Financials Sector Heatmap**:
+4. **AI / Energy / Financials Sector Heatmap**:
    - Treemap & tiled views categorized by market capitalization.
    - Color grading from deep crimson (-4%) to vibrant phosphor emerald (+4%).
    - Dynamic sector filtering (All, AI & Semiconductors, Energy, Financials).
-4. **AAPL 60-Session Technical Chart**:
+5. **AAPL 60-Session Technical Chart**:
    - 60 trading days of OHLC candlestick and line visualizer with high/low wicks.
+   - Automated RSI divergence detection with trendlines and terminal tape alerts.
    - Technical overlays: SMA 20, SMA 50, EMA 9, and Bollinger Bands.
    - Sub-charts: Volume distribution and RSI (14) relative strength indicator with 70/30 threshold lines.
-   - Interactive crosshair with date and OHLC readout.
-5. **Precious Metals & Commodities**:
+6. **Precious Metals & Commodities**:
    - Gold Spot (XAU/USD), Silver Spot (XAG/USD), Platinum (XPT/USD), Palladium (XPD/USD), WTI Crude, Brent Crude, Copper.
    - Real-time Bid/Ask spread, 24h range bars, and live Gold/Silver ratio tracker.
-6. **Data Adapters & Layout Persistence**:
+7. **Data Adapters & Layout Persistence**:
    - Dual engine: Live REST/WebSocket mode and deterministic simulation mode with variable tick speed (1x, 2x, 5x).
    - Full drag-and-drop workspace with column resizing, minimize/maximize, and automatic \`localStorage\` state caching.
 

@@ -28,6 +28,7 @@ import { HeatmapWidget } from './components/widgets/HeatmapWidget';
 import { AaplChartWidget } from './components/widgets/AaplChartWidget';
 import { PreciousMetalsWidget } from './components/widgets/PreciousMetalsWidget';
 import { TerminalTapeWidget } from './components/widgets/TerminalTapeWidget';
+import { MarketSentimentWidget } from './components/widgets/MarketSentimentWidget';
 
 const STORAGE_KEY = 'mkt_terminal_layout_v2';
 
@@ -38,6 +39,16 @@ const DEFAULT_WIDGETS: WidgetConfig[] = [
     title: 'WORLD SESSION CLOCKS & UTC OVERLAP TIMELINE',
     category: 'SYNCHRONIZATION',
     colSpan: 4,
+    isVisible: true,
+    isMinimized: false,
+    isMaximized: false,
+  },
+  {
+    id: 'w-market-sentiment',
+    type: 'market_sentiment',
+    title: 'MARKET SENTIMENT & GEMINI QUANT ENGINE',
+    category: 'AI SENTIMENT GAUGE',
+    colSpan: 2,
     isVisible: true,
     isMinimized: false,
     isMaximized: false,
@@ -102,6 +113,20 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          const hasSentiment = parsed.some((w: WidgetConfig) => w.type === 'market_sentiment');
+          if (!hasSentiment) {
+            const sentimentWidget: WidgetConfig = {
+              id: 'w-market-sentiment',
+              type: 'market_sentiment',
+              title: 'MARKET SENTIMENT & GEMINI QUANT ENGINE',
+              category: 'AI SENTIMENT GAUGE',
+              colSpan: 2,
+              isVisible: true,
+              isMinimized: false,
+              isMaximized: false,
+            };
+            return [parsed[0], sentimentWidget, ...parsed.slice(1)];
+          }
           return parsed;
         }
       }
@@ -212,6 +237,19 @@ export default function App() {
 
     if (audioEnabledRef.current) {
       playTerminalTick(divergence.type === 'BULLISH');
+    }
+  }, []);
+
+  // Broadcast any widget alert to the terminal log stream
+  const handleBroadcastAlert = useCallback((alert: Omit<TerminalAlert, 'id' | 'timestamp'>) => {
+    const newAlert: TerminalAlert = {
+      id: Math.random().toString(36).substring(2, 9),
+      timestamp: new Date().toISOString().substring(11, 23),
+      ...alert,
+    };
+    setAlerts((prev) => [newAlert, ...prev.slice(0, 50)]);
+    if (audioEnabledRef.current) {
+      playTerminalTick(alert.level !== 'WARNING');
     }
   }, []);
 
@@ -517,6 +555,16 @@ export default function App() {
     switch (widget.type) {
       case 'world_clocks':
         return <WorldSessionClocksWidget sessions={worldSessions} utcHours={utcHours} />;
+      case 'market_sentiment':
+        return (
+          <MarketSentimentWidget
+            indices={indicesData}
+            aaplData={aaplData}
+            heatmapStocks={heatmapData}
+            metals={metalsData}
+            onBroadcastAlert={handleBroadcastAlert}
+          />
+        );
       case 'aapl_chart':
         return (
           <AaplChartWidget 

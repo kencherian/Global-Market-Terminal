@@ -83,7 +83,8 @@ export type WidgetType =
   | 'sector_heatmap'
   | 'aapl_chart'
   | 'precious_metals'
-  | 'terminal_tape';
+  | 'terminal_tape'
+  | 'market_sentiment';
 
 export interface WidgetConfig {
   id: string;
@@ -95,6 +96,34 @@ export interface WidgetConfig {
   isVisible: boolean;
   isMinimized: boolean;
   isMaximized: boolean;
+}
+
+export interface SentimentSubGauge {
+  score: number;
+  label: string;
+  detail: string;
+}
+
+export interface MarketSentimentData {
+  score: number; // 0 to 100
+  label: 'Extreme Bearish' | 'Bearish' | 'Neutral' | 'Bullish' | 'Extreme Bullish';
+  headline: string;
+  summary: string;
+  keyDrivers: string[];
+  subGauges: {
+    technicalMomentum: SentimentSubGauge;
+    marketBreadth: SentimentSubGauge;
+    volatilityRisk: SentimentSubGauge;
+    macroOutlook: SentimentSubGauge;
+  };
+  institutionalFlow: string;
+  bias: string;
+  previousScore?: number;
+  dayLow?: number;
+  dayHigh?: number;
+  timestamp: string;
+  source: 'gemini-3.8-flash' | 'algorithmic-heuristic';
+  fallback?: boolean;
 }
 
 export interface TerminalAlert {
