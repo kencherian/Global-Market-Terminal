@@ -280,7 +280,11 @@ Return an accurate, realistic Market Sentiment evaluation JSON matching the spec
 // Endpoint: Real-Time Simulated Market News Wire Feed
 app.get('/api/market-news', async (req, res) => {
   try {
-    const sector = (req.query.sector as string || 'ALL').toUpperCase();
+    const rawSectors = (req.query.sectors as string || req.query.sector as string || 'ALL').toUpperCase();
+    const sectorList = rawSectors
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
     const query = (req.query.q as string || '').toLowerCase().trim();
     const generateWithAi = req.query.ai === 'true';
 
@@ -497,8 +501,8 @@ app.get('/api/market-news', async (req, res) => {
     ];
 
     let filtered = allHeadlines;
-    if (sector && sector !== 'ALL') {
-      filtered = filtered.filter((h) => h.sector === sector);
+    if (sectorList.length > 0 && !sectorList.includes('ALL')) {
+      filtered = filtered.filter((h) => sectorList.includes(h.sector));
     }
     if (query) {
       filtered = filtered.filter((h) => 
@@ -511,7 +515,7 @@ app.get('/api/market-news', async (req, res) => {
 
     return res.json({
       status: 'OK',
-      sector,
+      sectors: sectorList,
       query,
       count: filtered.length,
       headlines: filtered,

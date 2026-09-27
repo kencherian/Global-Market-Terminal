@@ -9,7 +9,6 @@ import {
   Minus, 
   SlidersHorizontal, 
   Send, 
-  ExternalLink, 
   Check, 
   Copy, 
   Zap, 
@@ -19,10 +18,10 @@ import {
   VolumeX, 
   Play, 
   Pause,
-  AlertTriangle,
   Clock,
   Sparkles,
-  Tag
+  Layers,
+  Filter
 } from 'lucide-react';
 import { 
   MarketNewsItem, 
@@ -42,15 +41,122 @@ interface MarketNewsWidgetProps {
   audioEnabled?: boolean;
 }
 
-const SECTOR_OPTIONS: { id: NewsSector; label: string; iconTag: string; color: string }[] = [
-  { id: 'ALL', label: 'ALL WIRES', iconTag: 'ALL', color: 'border-slate-500 text-slate-200' },
-  { id: 'TECH', label: 'TECH / AI', iconTag: 'TECH', color: 'border-cyan-500 text-cyan-300' },
-  { id: 'MACRO', label: 'MACRO / RATES', iconTag: 'MACRO', color: 'border-amber-500 text-amber-300' },
-  { id: 'FINANCIALS', label: 'FINANCIALS', iconTag: 'FIN', color: 'border-emerald-500 text-emerald-300' },
-  { id: 'ENERGY', label: 'ENERGY / OIL', iconTag: 'NRG', color: 'border-orange-500 text-orange-300' },
-  { id: 'METALS', label: 'METALS / COMM', iconTag: 'MET', color: 'border-yellow-500 text-yellow-300' },
-  { id: 'HEALTHCARE', label: 'HEALTHCARE', iconTag: 'HLTH', color: 'border-rose-500 text-rose-300' },
-  { id: 'CONSUMER', label: 'CONSUMER', iconTag: 'CONS', color: 'border-indigo-500 text-indigo-300' },
+export const ALL_SECTORS: NewsSector[] = [
+  'TECH',
+  'ENERGY',
+  'FINANCIALS',
+  'MACRO',
+  'METALS',
+  'HEALTHCARE',
+  'CONSUMER',
+];
+
+export interface SectorMeta {
+  id: NewsSector;
+  label: string;
+  shortLabel: string;
+  tag: string;
+  accentBorder: string;
+  accentText: string;
+  activeBg: string;
+  activeBorder: string;
+  activeText: string;
+  badgeActive: string;
+  description: string;
+}
+
+export const SECTOR_CONFIGS: SectorMeta[] = [
+  {
+    id: 'TECH',
+    label: 'AI / SEMIS',
+    shortLabel: 'AI/Semis',
+    tag: 'AI/SEMI',
+    accentBorder: 'border-cyan-500',
+    accentText: 'text-cyan-300',
+    activeBg: 'bg-cyan-950/70',
+    activeBorder: 'border-cyan-400',
+    activeText: 'text-cyan-200',
+    badgeActive: 'bg-cyan-400/20 text-cyan-300 border-cyan-500/50',
+    description: 'NVIDIA, TSMC, Broadcom, AMD, enterprise AI clusters, & accelerator backlogs',
+  },
+  {
+    id: 'ENERGY',
+    label: 'ENERGY',
+    shortLabel: 'Energy',
+    tag: 'ENERGY',
+    accentBorder: 'border-orange-500',
+    accentText: 'text-orange-300',
+    activeBg: 'bg-orange-950/70',
+    activeBorder: 'border-orange-400',
+    activeText: 'text-orange-200',
+    badgeActive: 'bg-orange-400/20 text-orange-300 border-orange-500/50',
+    description: 'WTI Crude, Brent, Natural Gas Henry Hub, OPEC+ discipline, & offshore rigs',
+  },
+  {
+    id: 'FINANCIALS',
+    label: 'FINANCIALS',
+    shortLabel: 'Financials',
+    tag: 'FIN',
+    accentBorder: 'border-emerald-500',
+    accentText: 'text-emerald-300',
+    activeBg: 'bg-emerald-950/70',
+    activeBorder: 'border-emerald-400',
+    activeText: 'text-emerald-200',
+    badgeActive: 'bg-emerald-400/20 text-emerald-300 border-emerald-500/50',
+    description: 'JPMorgan, Goldman Sachs, commercial lending spreads, debt syndication, & asset flows',
+  },
+  {
+    id: 'MACRO',
+    label: 'MACRO / RATES',
+    shortLabel: 'Macro',
+    tag: 'MACRO',
+    accentBorder: 'border-amber-500',
+    accentText: 'text-amber-300',
+    activeBg: 'bg-amber-950/70',
+    activeBorder: 'border-amber-400',
+    activeText: 'text-amber-200',
+    badgeActive: 'bg-amber-400/20 text-amber-300 border-amber-500/50',
+    description: 'FOMC policy, 10Y Treasury yields, Core PCE/CPI deflators, & foreign exchange',
+  },
+  {
+    id: 'METALS',
+    label: 'METALS / COMM',
+    shortLabel: 'Metals',
+    tag: 'METALS',
+    accentBorder: 'border-yellow-500',
+    accentText: 'text-yellow-300',
+    activeBg: 'bg-yellow-950/70',
+    activeBorder: 'border-yellow-400',
+    activeText: 'text-yellow-200',
+    badgeActive: 'bg-yellow-400/20 text-yellow-300 border-yellow-500/50',
+    description: 'Gold spot bullion, Silver industrial paste, LME copper warehouse stocks, & metals',
+  },
+  {
+    id: 'HEALTHCARE',
+    label: 'HEALTHCARE',
+    shortLabel: 'Health',
+    tag: 'HLTH',
+    accentBorder: 'border-rose-500',
+    accentText: 'text-rose-300',
+    activeBg: 'bg-rose-950/70',
+    activeBorder: 'border-rose-400',
+    activeText: 'text-rose-200',
+    badgeActive: 'bg-rose-400/20 text-rose-300 border-rose-500/50',
+    description: 'Clinical trial secondary endpoints, bioequivalence studies, & medical device deliveries',
+  },
+  {
+    id: 'CONSUMER',
+    label: 'CONSUMER',
+    shortLabel: 'Consumer',
+    tag: 'CONS',
+    accentBorder: 'border-indigo-500',
+    accentText: 'text-indigo-300',
+    activeBg: 'bg-indigo-950/70',
+    activeBorder: 'border-indigo-400',
+    activeText: 'text-indigo-200',
+    badgeActive: 'bg-indigo-400/20 text-indigo-300 border-indigo-500/50',
+    description: 'Autonomous vehicle telemetry, retail comps, & e-commerce sortation robotics',
+  },
 ];
 
 export function MarketNewsWidget({
@@ -58,7 +164,10 @@ export function MarketNewsWidget({
   audioEnabled = false,
 }: MarketNewsWidgetProps) {
   const [headlines, setHeadlines] = useState<MarketNewsItem[]>(INITIAL_NEWS_HEADLINES);
-  const [selectedSector, setSelectedSector] = useState<NewsSector>('ALL');
+  
+  // Multi-select sector state: initially all sectors enabled
+  const [selectedSectors, setSelectedSectors] = useState<NewsSector[]>(ALL_SECTORS);
+
   const [sentimentFilter, setSentimentFilter] = useState<'ALL' | NewsSentiment>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState<boolean>(true);
@@ -79,11 +188,41 @@ export function MarketNewsWidget({
     setSoundAlerts(audioEnabled);
   }, [audioEnabled]);
 
+  // Sector multi-select helper functions
+  const toggleSector = useCallback((sectorId: NewsSector) => {
+    setSelectedSectors((prev) => {
+      if (prev.includes(sectorId)) {
+        return prev.filter((s) => s !== sectorId);
+      } else {
+        return [...prev, sectorId];
+      }
+    });
+  }, []);
+
+  const soloSector = useCallback((sectorId: NewsSector) => {
+    setSelectedSectors([sectorId]);
+  }, []);
+
+  const selectAllSectors = useCallback(() => {
+    setSelectedSectors(ALL_SECTORS);
+  }, []);
+
+  const clearAllSectors = useCallback(() => {
+    setSelectedSectors([]);
+  }, []);
+
+  const selectCoreTrio = useCallback(() => {
+    setSelectedSectors(['TECH', 'ENERGY', 'FINANCIALS']);
+  }, []);
+
   // Fetch news from simulated API
-  const handleFetchNews = useCallback(async (sector: NewsSector = selectedSector) => {
+  const handleFetchNews = useCallback(async (sectorsToFetch: NewsSector[] = selectedSectors) => {
     setIsLoading(true);
     try {
-      const data = await fetchMarketNewsApi(sector, searchQuery);
+      const data = await fetchMarketNewsApi(
+        sectorsToFetch.length === ALL_SECTORS.length ? undefined : sectorsToFetch,
+        searchQuery
+      );
       setHeadlines((prev) => {
         // Merge without losing freshly injected ticks
         const existingIds = new Set(data.map((d) => d.id));
@@ -96,14 +235,16 @@ export function MarketNewsWidget({
     } finally {
       setIsLoading(false);
     }
-  }, [selectedSector, searchQuery]);
+  }, [selectedSectors, searchQuery]);
 
   // Simulated live news ticker stream: pushes incoming wire every interval
   useEffect(() => {
     if (!isStreaming) return;
 
     const timer = setInterval(() => {
-      const newTick = generateSimulatedNewsTick(selectedSector === 'ALL' ? undefined : selectedSector);
+      // Direct real-time ticks to currently selected sectors (or all if none)
+      const activeFilter = selectedSectors.length > 0 ? selectedSectors : ALL_SECTORS;
+      const newTick = generateSimulatedNewsTick(activeFilter);
       
       setHeadlines((prev) => [newTick, ...prev.slice(0, 49)]); // keep latest 50
       setNewFlashId(newTick.id);
@@ -125,11 +266,12 @@ export function MarketNewsWidget({
     }, streamIntervalSec * 1000);
 
     return () => clearInterval(timer);
-  }, [isStreaming, selectedSector, streamIntervalSec, soundAlerts]);
+  }, [isStreaming, selectedSectors, streamIntervalSec, soundAlerts]);
 
-  // Handle immediate inject of a simulated wire
+  // Handle immediate inject of a simulated wire for selected sectors
   const handleInjectWire = () => {
-    const newTick = generateSimulatedNewsTick(selectedSector === 'ALL' ? undefined : selectedSector);
+    const activeFilter = selectedSectors.length > 0 ? selectedSectors : ALL_SECTORS;
+    const newTick = generateSimulatedNewsTick(activeFilter);
     setHeadlines((prev) => [newTick, ...prev]);
     setNewFlashId(newTick.id);
     if (soundAlerts) {
@@ -140,11 +282,14 @@ export function MarketNewsWidget({
     }, 2500);
   };
 
-  // Filter headlines by sector, sentiment, and keyword
+  // Filter headlines by multi-selected sectors, sentiment, and keyword
   const filteredHeadlines = useMemo(() => {
     return headlines.filter((item) => {
-      // Sector filter
-      if (selectedSector !== 'ALL' && item.sector !== selectedSector) {
+      // Sector multi-select check
+      if (selectedSectors.length === 0) {
+        return false;
+      }
+      if (!selectedSectors.includes(item.sector)) {
         return false;
       }
       // Sentiment filter
@@ -164,9 +309,9 @@ export function MarketNewsWidget({
       }
       return true;
     });
-  }, [headlines, selectedSector, sentimentFilter, searchQuery]);
+  }, [headlines, selectedSectors, sentimentFilter, searchQuery]);
 
-  // Sector counts
+  // Sector counts across available headlines
   const sectorCounts = useMemo(() => {
     const counts: Record<string, number> = { ALL: headlines.length };
     headlines.forEach((item) => {
@@ -187,10 +332,11 @@ export function MarketNewsWidget({
   const handleBroadcastHeadline = (item: MarketNewsItem) => {
     if (onBroadcastAlert) {
       const level = item.urgency === 'BREAKING' ? 'SPIKE' : item.urgency === 'ALERT' ? 'WARNING' : 'NOTICE';
+      const sectorTag = item.sector === 'TECH' ? 'AI/SEMIS' : item.sector;
       onBroadcastAlert({
         level,
         source: `NEWS::${item.source}`,
-        text: `[${item.sector}] ${item.headline} (${item.tickers.join(', ')})`,
+        text: `[${sectorTag}] ${item.headline} (${item.tickers.join(', ')})`,
       });
       if (soundAlerts) {
         playTerminalTick(true);
@@ -202,6 +348,14 @@ export function MarketNewsWidget({
   const breakingHeadline = useMemo(() => {
     return headlines.find((h) => h.urgency === 'BREAKING') || headlines[0];
   }, [headlines]);
+
+  const isAllSelected = selectedSectors.length === ALL_SECTORS.length;
+  const isNoneSelected = selectedSectors.length === 0;
+  const isTrioSelected = 
+    selectedSectors.length === 3 &&
+    selectedSectors.includes('TECH') &&
+    selectedSectors.includes('ENERGY') &&
+    selectedSectors.includes('FINANCIALS');
 
   return (
     <div className="flex flex-col h-full bg-[#060b0f] text-slate-200 select-none font-mono">
@@ -286,7 +440,7 @@ export function MarketNewsWidget({
 
           {/* Reload from simulated API */}
           <button
-            onClick={() => handleFetchNews(selectedSector)}
+            onClick={() => handleFetchNews(selectedSectors)}
             disabled={isLoading}
             className="flex items-center gap-1 px-2 py-1 rounded bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 hover:border-cyan-600 text-neutral-300 hover:text-cyan-300 text-[10px] transition-colors disabled:opacity-50"
             title="Fetch wires from simulated API feed"
@@ -320,48 +474,209 @@ export function MarketNewsWidget({
         </div>
       )}
 
-      {/* Sector Filter Pills Bar */}
+      {/* Sector Multi-Select Filter Bar */}
       <div className="px-3 pt-2.5 pb-2 border-b border-neutral-800/70 bg-[#070c10]">
-        <div className="flex items-center justify-between gap-1 mb-1.5 text-[10px] text-neutral-400">
-          <div className="flex items-center gap-1">
-            <SlidersHorizontal className="w-3 h-3 text-cyan-400" />
-            <span className="uppercase font-semibold tracking-wider text-slate-300">SECTOR FILTER</span>
+        <div className="flex flex-wrap items-center justify-between gap-1.5 mb-2 text-[10px]">
+          <div className="flex items-center gap-1.5">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="uppercase font-bold tracking-wider text-slate-200">
+              SECTOR FEED FILTERS
+            </span>
+            <span className="text-neutral-500 font-mono text-[9px] hidden sm:inline">
+              (MULTI-SELECT)
+            </span>
+            <span
+              className={`px-1.5 py-0.2 rounded text-[9px] font-mono font-bold border ${
+                isAllSelected
+                  ? 'bg-cyan-950/70 border-cyan-700/60 text-cyan-300'
+                  : isNoneSelected
+                  ? 'bg-rose-950/70 border-rose-700/60 text-rose-300'
+                  : 'bg-emerald-950/70 border-emerald-700/60 text-emerald-300'
+              }`}
+            >
+              {isAllSelected
+                ? 'ALL 7 ACTIVE'
+                : isNoneSelected
+                ? '0 ACTIVE'
+                : `${selectedSectors.length} OF 7 ACTIVE`}
+            </span>
           </div>
-          <span className="text-neutral-500 text-[9px]">Select sector to narrow real-time wire feed</span>
+
+          {/* Quick Filter Presets & Dedicated Toggles */}
+          <div className="flex items-center gap-1 flex-wrap">
+            {/* Direct Quick Toggle: AI/Semis */}
+            <button
+              onClick={() => toggleSector('TECH')}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-mono border transition-all ${
+                selectedSectors.includes('TECH')
+                  ? 'bg-cyan-950 border-cyan-400 text-cyan-200 shadow-[0_0_8px_rgba(6,182,212,0.3)] font-bold'
+                  : 'bg-neutral-900/90 border-neutral-800 text-neutral-500 hover:text-neutral-300'
+              }`}
+              title="Toggle AI / Semis wire feed on/off"
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${selectedSectors.includes('TECH') ? 'bg-cyan-400 animate-pulse' : 'bg-neutral-600'}`} />
+              <span>AI/SEMIS</span>
+            </button>
+
+            {/* Direct Quick Toggle: Energy */}
+            <button
+              onClick={() => toggleSector('ENERGY')}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-mono border transition-all ${
+                selectedSectors.includes('ENERGY')
+                  ? 'bg-orange-950 border-orange-400 text-orange-200 shadow-[0_0_8px_rgba(249,115,22,0.3)] font-bold'
+                  : 'bg-neutral-900/90 border-neutral-800 text-neutral-500 hover:text-neutral-300'
+              }`}
+              title="Toggle Energy wire feed on/off"
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${selectedSectors.includes('ENERGY') ? 'bg-orange-400 animate-pulse' : 'bg-neutral-600'}`} />
+              <span>ENERGY</span>
+            </button>
+
+            {/* Direct Quick Toggle: Financials */}
+            <button
+              onClick={() => toggleSector('FINANCIALS')}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-mono border transition-all ${
+                selectedSectors.includes('FINANCIALS')
+                  ? 'bg-emerald-950 border-emerald-400 text-emerald-200 shadow-[0_0_8px_rgba(16,185,129,0.3)] font-bold'
+                  : 'bg-neutral-900/90 border-neutral-800 text-neutral-500 hover:text-neutral-300'
+              }`}
+              title="Toggle Financials wire feed on/off"
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${selectedSectors.includes('FINANCIALS') ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-600'}`} />
+              <span>FINANCIALS</span>
+            </button>
+
+            {/* Combo Preset: AI + Energy + Fin */}
+            <button
+              onClick={selectCoreTrio}
+              className={`px-2 py-0.5 rounded text-[9px] font-mono border transition-all ${
+                isTrioSelected
+                  ? 'bg-cyan-900/50 border-cyan-400 text-cyan-200 font-bold shadow-[0_0_8px_rgba(6,182,212,0.25)]'
+                  : 'bg-neutral-900/80 border-neutral-800 text-neutral-400 hover:text-cyan-300 hover:border-neutral-700'
+              }`}
+              title="Select AI/Semis, Energy, and Financials together"
+            >
+              TRIO (AI+NRG+FIN)
+            </button>
+
+            {/* Select All */}
+            <button
+              onClick={selectAllSectors}
+              className={`px-2 py-0.5 rounded text-[9px] font-mono border transition-colors ${
+                isAllSelected
+                  ? 'bg-neutral-800 text-cyan-300 border-neutral-700 font-bold'
+                  : 'bg-neutral-900 text-neutral-400 hover:text-neutral-200 border-neutral-800'
+              }`}
+              title="Enable all 7 sector feeds"
+            >
+              ALL
+            </button>
+
+            {/* Clear All */}
+            <button
+              onClick={clearAllSectors}
+              className="px-2 py-0.5 rounded text-[9px] font-mono bg-neutral-900 text-neutral-500 hover:text-rose-300 border border-neutral-800 hover:border-rose-900/50 transition-colors"
+              title="Mute all sector feeds"
+            >
+              CLEAR
+            </button>
+          </div>
         </div>
 
+        {/* Sector Multi-Select Pills Bar */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-neutral-800">
-          {SECTOR_OPTIONS.map((sec) => {
-            const isSelected = selectedSector === sec.id;
+          {SECTOR_CONFIGS.map((sec) => {
+            const isSelected = selectedSectors.includes(sec.id);
             const count = sectorCounts[sec.id] || 0;
+
             return (
-              <button
+              <div
                 key={sec.id}
-                onClick={() => {
-                  setSelectedSector(sec.id);
-                  handleFetchNews(sec.id);
-                }}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-all border font-mono ${
-                  isSelected
-                    ? 'bg-cyan-950/70 border-cyan-400 text-cyan-200 shadow-[0_0_12px_rgba(6,182,212,0.25)] font-bold'
-                    : 'bg-neutral-900/80 border-neutral-800 text-neutral-400 hover:text-neutral-200 hover:border-neutral-700 hover:bg-neutral-800/60'
-                }`}
+                className="group relative flex items-center shrink-0"
               >
-                <span>{sec.label}</span>
-                <span
-                  className={`text-[9px] px-1 py-0.2 rounded-full font-bold ${
+                <button
+                  onClick={() => toggleSector(sec.id)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-all border font-mono ${
                     isSelected
-                      ? 'bg-cyan-400/20 text-cyan-300 border border-cyan-500/40'
-                      : 'bg-neutral-800 text-neutral-400'
+                      ? `${sec.activeBg} ${sec.activeBorder} ${sec.activeText} shadow-[0_0_10px_rgba(6,182,212,0.18)] font-bold`
+                      : 'bg-neutral-950/60 border-neutral-800/80 text-neutral-500 hover:text-neutral-300 hover:border-neutral-700 opacity-60 hover:opacity-100'
                   }`}
+                  title={`${sec.description} — Click to toggle`}
                 >
-                  {count}
-                </span>
-              </button>
+                  {/* Visual Checkbox Indicator */}
+                  <span
+                    className={`flex items-center justify-center w-3 h-3 rounded transition-colors ${
+                      isSelected
+                        ? sec.badgeActive
+                        : 'border border-neutral-700 bg-neutral-900 text-transparent'
+                    }`}
+                  >
+                    {isSelected ? <Check className="w-2 h-2 stroke-[3]" /> : null}
+                  </span>
+
+                  <span>{sec.label}</span>
+
+                  <span
+                    className={`text-[9px] px-1 py-0.2 rounded-full font-bold ${
+                      isSelected
+                        ? sec.badgeActive
+                        : 'bg-neutral-900 text-neutral-600 border border-neutral-800'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+
+                {/* Quick Solo Hover Trigger */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    soloSector(sec.id);
+                  }}
+                  className="opacity-0 group-hover:opacity-100 ml-1 px-1 py-0.5 rounded text-[8px] bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-400 hover:text-cyan-300 transition-opacity"
+                  title={`Show ONLY ${sec.label}`}
+                >
+                  SOLO
+                </button>
+              </div>
             );
           })}
         </div>
       </div>
+
+      {/* Filtered Active Tags Banner (visible when filtered) */}
+      {!isAllSelected && selectedSectors.length > 0 && (
+        <div className="flex items-center gap-1.5 px-3 py-1 bg-cyan-950/20 border-b border-cyan-900/30 text-[10px] overflow-x-auto scrollbar-none">
+          <span className="text-[9px] uppercase font-bold text-cyan-400 shrink-0 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+            FILTERED FEEDS ({selectedSectors.length}):
+          </span>
+          {selectedSectors.map((secId) => {
+            const sec = SECTOR_CONFIGS.find((s) => s.id === secId);
+            return (
+              <span
+                key={secId}
+                className="flex items-center gap-1 px-1.5 py-0.2 rounded bg-neutral-900/90 border border-neutral-700 text-neutral-200 text-[9px] shrink-0 font-mono"
+              >
+                <span>{sec?.label || secId}</span>
+                <button
+                  onClick={() => toggleSector(secId)}
+                  className="text-neutral-500 hover:text-rose-400 transition-colors ml-0.5 font-bold"
+                  title={`Remove ${sec?.label || secId} from filter`}
+                >
+                  ✕
+                </button>
+              </span>
+            );
+          })}
+          <button
+            onClick={selectAllSectors}
+            className="ml-auto text-[9px] text-cyan-400 hover:text-cyan-300 underline shrink-0 cursor-pointer font-mono"
+          >
+            Reset to All
+          </button>
+        </div>
+      )}
 
       {/* Search & Sentiment Quick Filter Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 border-b border-neutral-800/80 bg-[#060a0e] text-[11px]">
@@ -372,7 +687,7 @@ export function MarketNewsWidget({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search headline, ticker ($AAPL, $NVDA), source..."
+            placeholder="Search headline, ticker ($NVDA, $XOM, $JPM), source..."
             className="w-full pl-7 pr-6 py-1 bg-neutral-950 border border-neutral-800 focus:border-cyan-500 focus:outline-none rounded text-[11px] font-mono text-slate-200 placeholder-neutral-600 transition-colors"
           />
           {searchQuery && (
@@ -421,8 +736,17 @@ export function MarketNewsWidget({
         {filteredHeadlines.length === 0 ? (
           <div className="p-8 text-center text-neutral-500 font-mono text-xs flex flex-col items-center justify-center gap-2">
             <Newspaper className="w-8 h-8 text-neutral-700 stroke-[1.5]" />
-            <p>No headlines found matching criteria.</p>
-            <div className="flex items-center gap-2 mt-1">
+            <p className="text-slate-300 font-medium">
+              {isNoneSelected
+                ? 'All sector news feeds are currently muted.'
+                : 'No headlines found matching active criteria.'}
+            </p>
+            <p className="text-[10px] text-neutral-500 max-w-sm">
+              {isNoneSelected
+                ? 'Toggle on AI/Semis, Energy, Financials, or other sectors above to resume streaming financial headlines.'
+                : 'Try adjusting your sector multi-select filters, search query, or sentiment options.'}
+            </p>
+            <div className="flex items-center gap-2 mt-3 flex-wrap justify-center">
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
@@ -431,13 +755,45 @@ export function MarketNewsWidget({
                   Clear Search Query
                 </button>
               )}
-              {selectedSector !== 'ALL' && (
-                <button
-                  onClick={() => setSelectedSector('ALL')}
-                  className="px-2.5 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-neutral-700 text-cyan-400 text-[10px]"
-                >
-                  View All Sectors
-                </button>
+              {selectedSectors.length < ALL_SECTORS.length && (
+                <>
+                  <button
+                    onClick={selectAllSectors}
+                    className="px-2.5 py-1 rounded bg-cyan-950/70 border border-cyan-700 hover:border-cyan-500 text-cyan-300 text-[10px] font-bold"
+                  >
+                    Enable All Feeds
+                  </button>
+                  <button
+                    onClick={selectCoreTrio}
+                    className="px-2.5 py-1 rounded bg-neutral-900 border border-neutral-700 hover:border-cyan-600 text-neutral-200 text-[10px]"
+                  >
+                    Enable Core Trio (AI+Energy+Fin)
+                  </button>
+                  {!selectedSectors.includes('TECH') && (
+                    <button
+                      onClick={() => toggleSector('TECH')}
+                      className="px-2.5 py-1 rounded bg-neutral-900 border border-cyan-800 text-cyan-300 text-[10px]"
+                    >
+                      + AI / Semis
+                    </button>
+                  )}
+                  {!selectedSectors.includes('ENERGY') && (
+                    <button
+                      onClick={() => toggleSector('ENERGY')}
+                      className="px-2.5 py-1 rounded bg-neutral-900 border border-orange-800 text-orange-300 text-[10px]"
+                    >
+                      + Energy
+                    </button>
+                  )}
+                  {!selectedSectors.includes('FINANCIALS') && (
+                    <button
+                      onClick={() => toggleSector('FINANCIALS')}
+                      className="px-2.5 py-1 rounded bg-neutral-900 border border-emerald-800 text-emerald-300 text-[10px]"
+                    >
+                      + Financials
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -486,8 +842,22 @@ export function MarketNewsWidget({
                     </span>
 
                     {/* Sector Tag */}
-                    <span className="px-1.5 py-0.2 rounded bg-neutral-900/90 border border-neutral-800 text-cyan-400/90 font-mono text-[9px]">
-                      {item.sector}
+                    <span className={`px-1.5 py-0.2 rounded border font-mono text-[9px] font-semibold ${
+                      item.sector === 'TECH'
+                        ? 'bg-cyan-950/60 border-cyan-800/80 text-cyan-300'
+                        : item.sector === 'ENERGY'
+                        ? 'bg-orange-950/60 border-orange-800/80 text-orange-300'
+                        : item.sector === 'FINANCIALS'
+                        ? 'bg-emerald-950/60 border-emerald-800/80 text-emerald-300'
+                        : item.sector === 'MACRO'
+                        ? 'bg-amber-950/60 border-amber-800/80 text-amber-300'
+                        : item.sector === 'METALS'
+                        ? 'bg-yellow-950/60 border-yellow-800/80 text-yellow-300'
+                        : item.sector === 'HEALTHCARE'
+                        ? 'bg-rose-950/60 border-rose-800/80 text-rose-300'
+                        : 'bg-indigo-950/60 border-indigo-800/80 text-indigo-300'
+                    }`}>
+                      {item.sector === 'TECH' ? 'AI / SEMIS' : item.sector}
                     </span>
                   </div>
 
@@ -621,15 +991,17 @@ export function MarketNewsWidget({
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1 text-cyan-400">
             <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-            <span>SECTOR: {selectedSector}</span>
+            <span>
+              FEEDS: {isAllSelected ? 'ALL (7/7 ACTIVE)' : isNoneSelected ? 'NONE ACTIVE' : `${selectedSectors.length} ACTIVE (${selectedSectors.map(s => s === 'TECH' ? 'AI' : s === 'ENERGY' ? 'NRG' : s === 'FINANCIALS' ? 'FIN' : s).join(', ')})`}
+            </span>
           </span>
           <span>•</span>
-          <span>SIMULATED API: ACTIVE</span>
+          <span>SIMULATED API: ONLINE</span>
         </div>
         <div className="flex items-center gap-2">
-          <span>STREAM RATE: Every {streamIntervalSec}s</span>
+          <span>TICK RATE: Every {streamIntervalSec}s</span>
           <span>•</span>
-          <span className="text-neutral-400">WIRES IN CACHE: {headlines.length}</span>
+          <span className="text-neutral-400">CACHED: {headlines.length} WIRES</span>
         </div>
       </div>
     </div>

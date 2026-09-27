@@ -309,11 +309,20 @@ const SIMULATED_TICK_TEMPLATES = [
 
 let dynamicCounter = 100;
 
-export function generateSimulatedNewsTick(sectorFilter?: NewsSector): MarketNewsItem {
+export function generateSimulatedNewsTick(sectorFilter?: NewsSector | NewsSector[]): MarketNewsItem {
   dynamicCounter++;
-  const pool = sectorFilter && sectorFilter !== 'ALL'
-    ? SIMULATED_TICK_TEMPLATES.filter((t) => t.sector === sectorFilter)
-    : SIMULATED_TICK_TEMPLATES;
+  let pool = SIMULATED_TICK_TEMPLATES;
+  if (Array.isArray(sectorFilter)) {
+    const valid = sectorFilter.filter((s) => s !== 'ALL');
+    if (valid.length > 0) {
+      pool = SIMULATED_TICK_TEMPLATES.filter((t) => (valid as string[]).includes(t.sector));
+    }
+  } else if (sectorFilter && sectorFilter !== 'ALL') {
+    pool = SIMULATED_TICK_TEMPLATES.filter((t) => t.sector === sectorFilter);
+  }
+  if (!pool || pool.length === 0) {
+    pool = SIMULATED_TICK_TEMPLATES;
+  }
 
   const template = pool[Math.floor(Math.random() * pool.length)] || SIMULATED_TICK_TEMPLATES[0];
   const headline = template.headlines[Math.floor(Math.random() * template.headlines.length)];
@@ -349,13 +358,18 @@ export function generateSimulatedNewsTick(sectorFilter?: NewsSector): MarketNews
  * Fetch news from the simulated API (with fallback to client generation)
  */
 export async function fetchMarketNewsApi(
-  sector?: NewsSector,
+  sectors?: NewsSector | NewsSector[],
   searchQuery?: string
 ): Promise<MarketNewsItem[]> {
   try {
     const params = new URLSearchParams();
-    if (sector && sector !== 'ALL') {
-      params.append('sector', sector);
+    if (Array.isArray(sectors)) {
+      const valid = sectors.filter((s) => s !== 'ALL');
+      if (valid.length > 0) {
+        params.append('sectors', valid.join(','));
+      }
+    } else if (sectors && sectors !== 'ALL') {
+      params.append('sector', sectors);
     }
     if (searchQuery && searchQuery.trim()) {
       params.append('q', searchQuery.trim());
@@ -374,8 +388,13 @@ export async function fetchMarketNewsApi(
 
   // Client-side fallback
   let list = [...INITIAL_NEWS_HEADLINES];
-  if (sector && sector !== 'ALL') {
-    list = list.filter((item) => item.sector === sector);
+  if (Array.isArray(sectors)) {
+    const valid = sectors.filter((s) => s !== 'ALL');
+    if (valid.length > 0) {
+      list = list.filter((item) => (valid as string[]).includes(item.sector));
+    }
+  } else if (sectors && sectors !== 'ALL') {
+    list = list.filter((item) => item.sector === sectors);
   }
   if (searchQuery && searchQuery.trim()) {
     const q = searchQuery.toLowerCase();
