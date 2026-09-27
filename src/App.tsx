@@ -116,6 +116,12 @@ const DEFAULT_WIDGETS: WidgetConfig[] = [
   },
 ];
 
+let alertGlobalSeq = 1000;
+export function generateUniqueAlertId(prefix = 'alert'): string {
+  alertGlobalSeq++;
+  return `${prefix}-${Date.now()}-${alertGlobalSeq}-${Math.random().toString(36).substring(2, 7)}`;
+}
+
 export default function App() {
   // Persistence for Widgets layout
   const [widgets, setWidgets] = useState<WidgetConfig[]>(() => {
@@ -216,10 +222,10 @@ export default function App() {
 
   // Terminal log stream
   const [alerts, setAlerts] = useState<TerminalAlert[]>([
-    { id: '1', timestamp: '15:42:01.210', level: 'NOTICE', source: 'NASDAQ', text: 'AAPL BLOCK TRADE: 15,000 SHARES @ $231.40 EX:NSDQ' },
-    { id: '2', timestamp: '15:42:00.890', level: 'SPIKE', source: 'HEATMAP', text: 'NVDA ACCELERATION: VOLUME 64M (+3.42%)' },
-    { id: '3', timestamp: '15:41:59.400', level: 'INFO', source: 'NYSE', text: 'ORDERBOOK BALANCED. SPREADS TIGHTENING ACROSS FINANCIALS' },
-    { id: '4', timestamp: '15:41:58.120', level: 'NOTICE', source: 'LSE', text: 'XAU/USD GOLD FIX: 2658.65 BID/ASK BALANCED' },
+    { id: 'alert-init-1', timestamp: '15:42:01.210', level: 'NOTICE', source: 'NASDAQ', text: 'AAPL BLOCK TRADE: 15,000 SHARES @ $231.40 EX:NSDQ' },
+    { id: 'alert-init-2', timestamp: '15:42:00.890', level: 'SPIKE', source: 'HEATMAP', text: 'NVDA ACCELERATION: VOLUME 64M (+3.42%)' },
+    { id: 'alert-init-3', timestamp: '15:41:59.400', level: 'INFO', source: 'NYSE', text: 'ORDERBOOK BALANCED. SPREADS TIGHTENING ACROSS FINANCIALS' },
+    { id: 'alert-init-4', timestamp: '15:41:58.120', level: 'NOTICE', source: 'LSE', text: 'XAU/USD GOLD FIX: 2658.65 BID/ASK BALANCED' },
   ]);
 
   // Audio ref to avoid stale state in timer
@@ -242,15 +248,16 @@ export default function App() {
       playTerminalAlarm();
     }
 
+    const alertId = generateUniqueAlertId('thresh');
     setAlerts((prev) => [
       {
-        id: String(Date.now()),
+        id: alertId,
         timestamp: timeStr,
         level: 'SPIKE',
         source: 'THRESHOLD-HIT',
         text: `⚠️ AAPL PRICE THRESHOLD TRIGGERED: Reached $${price.toFixed(2)} (Alert Limit: $${threshold.toFixed(2)})`,
       },
-      ...prev.slice(0, 50),
+      ...prev.filter((p) => p.id !== alertId).slice(0, 50),
     ]);
 
     setTimeout(() => {
@@ -267,7 +274,7 @@ export default function App() {
       if (prev.some((a) => a.text.includes(divergence.id) || a.text.includes(divergence.summary))) {
         return prev;
       }
-      return [alert, ...prev.slice(0, 50)];
+      return [alert, ...prev.filter((p) => p.id !== alert.id).slice(0, 50)];
     });
 
     if (audioEnabledRef.current) {
@@ -277,12 +284,13 @@ export default function App() {
 
   // Broadcast any widget alert to the terminal log stream
   const handleBroadcastAlert = useCallback((alert: Omit<TerminalAlert, 'id' | 'timestamp'>) => {
+    const alertId = generateUniqueAlertId('bcast');
     const newAlert: TerminalAlert = {
-      id: Math.random().toString(36).substring(2, 9),
+      id: alertId,
       timestamp: new Date().toISOString().substring(11, 23),
       ...alert,
     };
-    setAlerts((prev) => [newAlert, ...prev.slice(0, 50)]);
+    setAlerts((prev) => [newAlert, ...prev.filter((p) => p.id !== alertId).slice(0, 50)]);
     if (audioEnabledRef.current) {
       playTerminalTick(alert.level !== 'WARNING');
     }
@@ -490,15 +498,16 @@ export default function App() {
         ];
         const pick = sampleQuotes[Math.floor(Math.random() * sampleQuotes.length)];
 
+        const alertId = generateUniqueAlertId('tape');
         setAlerts((prev) => [
           {
-            id: String(Date.now()),
+            id: alertId,
             timestamp: timeStr,
             level: pick.lvl as any,
             source: pick.s,
             text: pick.txt,
           },
-          ...prev.slice(0, 50),
+          ...prev.filter((p) => p.id !== alertId).slice(0, 50),
         ]);
       }
     }, intervalMs);

@@ -252,7 +252,7 @@ export function createSyntheticDivergence(
     const rsiDelta = Math.round((rsi2 - rsi1) * 10) / 10;
 
     return {
-      id: `bull-sim-${Date.now()}`,
+      id: `bull-sim-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
       type: 'BULLISH',
       p1: { index: idx1, date: c1.date, price: p1Price, rsi: rsi1 },
       p2: { index: idx2, date: c2.date, price: p2Price, rsi: rsi2 },
@@ -273,7 +273,7 @@ export function createSyntheticDivergence(
     const rsiDelta = Math.round((rsi2 - rsi1) * 10) / 10;
 
     return {
-      id: `bear-sim-${Date.now()}`,
+      id: `bear-sim-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
       type: 'BEARISH',
       p1: { index: idx1, date: c1.date, price: p1Price, rsi: rsi1 },
       p2: { index: idx2, date: c2.date, price: p2Price, rsi: rsi2 },

@@ -1447,7 +1447,7 @@ export function AaplChartWidget({ candles, liveFlash, onThresholdHit, onDivergen
                 const strokeColor = isBull ? '#34d399' : '#fb7185';
 
                 return (
-                  <g key={`main-vol-${c.date}`}>
+                  <g key={`main-vol-${c.date}-${i}`}>
                     {/* Volume Bar Column */}
                     <rect
                       x={x - candleWidth / 2}
@@ -1559,7 +1559,7 @@ export function AaplChartWidget({ candles, liveFlash, onThresholdHit, onDivergen
               const candleWidth = Math.max(stepX * 0.72, 3);
 
               return (
-                <g key={c.date}>
+                <g key={`candle-${c.date}-${i}`}>
                   {/* High/Low Wick */}
                   <line
                     x1={x}
@@ -1607,7 +1607,7 @@ export function AaplChartWidget({ candles, liveFlash, onThresholdHit, onDivergen
 
                 return (
                   <g 
-                    key={`price-${div.id}`}
+                    key={`price-${div.id}-${div.p1.index}-${div.p2.index}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedDivergence(div);
@@ -1988,7 +1988,7 @@ export function AaplChartWidget({ candles, liveFlash, onThresholdHit, onDivergen
 
                   return (
                     <g 
-                      key={`rsi-${div.id}`}
+                      key={`rsi-${div.id}-${div.p1.index}-${div.p2.index}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedDivergence(div);
@@ -2573,7 +2573,7 @@ export function AaplChartWidget({ candles, liveFlash, onThresholdHit, onDivergen
             const x = padLeft + i * stepX;
             return (
               <rect
-                key={`hit-${c.date}`}
+                key={`hit-${c.date}-${i}`}
                 x={x}
                 y={0}
                 width={stepX}

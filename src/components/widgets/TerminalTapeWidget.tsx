@@ -66,7 +66,7 @@ export function TerminalTapeWidget({ alerts, onClearAlerts }: TerminalTapeWidget
         {filtered.length === 0 ? (
           <div className="text-neutral-600 py-4 text-center">NO TICKS IN CURRENT FILTER BUFFER</div>
         ) : (
-          filtered.slice(0, 40).map((a) => {
+          filtered.slice(0, 40).map((a, idx) => {
             let color = 'text-neutral-300';
             let badgeColor = 'bg-neutral-800 text-neutral-400';
 
@@ -91,7 +91,7 @@ export function TerminalTapeWidget({ alerts, onClearAlerts }: TerminalTapeWidget
             }
 
             return (
-              <div key={a.id} className="flex items-start gap-2 hover:bg-neutral-900/50 px-1 py-0.5 rounded transition-colors">
+              <div key={`${a.id}-${idx}`} className="flex items-start gap-2 hover:bg-neutral-900/50 px-1 py-0.5 rounded transition-colors">
                 <span className="text-neutral-500 shrink-0 text-[10px]">{a.timestamp}</span>
                 <span className={`text-[9px] px-1 py-0.2 rounded shrink-0 ${badgeColor}`}>
                   {a.source}

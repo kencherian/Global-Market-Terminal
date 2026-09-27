@@ -227,7 +227,13 @@ export function MarketNewsWidget({
         // Merge without losing freshly injected ticks
         const existingIds = new Set(data.map((d) => d.id));
         const keepFresh = prev.filter((p) => p.isNew && !existingIds.has(p.id));
-        return [...keepFresh, ...data];
+        const combined = [...keepFresh, ...data];
+        const seen = new Set<string>();
+        return combined.filter((item) => {
+          if (seen.has(item.id)) return false;
+          seen.add(item.id);
+          return true;
+        });
       });
       setLastFetchTime(new Date().toTimeString().split(' ')[0]);
     } catch (err) {
@@ -246,7 +252,10 @@ export function MarketNewsWidget({
       const activeFilter = selectedSectors.length > 0 ? selectedSectors : ALL_SECTORS;
       const newTick = generateSimulatedNewsTick(activeFilter);
       
-      setHeadlines((prev) => [newTick, ...prev.slice(0, 49)]); // keep latest 50
+      setHeadlines((prev) => {
+        const withoutDup = prev.filter((p) => p.id !== newTick.id);
+        return [newTick, ...withoutDup.slice(0, 49)]; // keep latest 50
+      });
       setNewFlashId(newTick.id);
 
       // Play terminal tick or alarm
@@ -272,7 +281,10 @@ export function MarketNewsWidget({
   const handleInjectWire = () => {
     const activeFilter = selectedSectors.length > 0 ? selectedSectors : ALL_SECTORS;
     const newTick = generateSimulatedNewsTick(activeFilter);
-    setHeadlines((prev) => [newTick, ...prev]);
+    setHeadlines((prev) => {
+      const withoutDup = prev.filter((p) => p.id !== newTick.id);
+      return [newTick, ...withoutDup.slice(0, 49)];
+    });
     setNewFlashId(newTick.id);
     if (soundAlerts) {
       playTerminalTick(true);
@@ -798,14 +810,14 @@ export function MarketNewsWidget({
             </div>
           </div>
         ) : (
-          filteredHeadlines.map((item) => {
+          filteredHeadlines.map((item, idx) => {
             const isFlash = newFlashId === item.id;
             const isExpanded = expandedId === item.id;
             const isCopied = copiedId === item.id;
 
             return (
               <div
-                key={item.id}
+                key={`${item.id}-${idx}`}
                 className={`p-3 transition-all duration-300 hover:bg-[#0b131a] relative ${
                   isFlash
                     ? 'bg-cyan-950/40 border-l-4 border-l-cyan-400 shadow-[inset_0_0_20px_rgba(6,182,212,0.15)]'
@@ -904,9 +916,9 @@ export function MarketNewsWidget({
                 {/* Associated Tickers Chips */}
                 {item.tickers && item.tickers.length > 0 && (
                   <div className="flex items-center gap-1 mt-1.5 flex-wrap">
-                    {item.tickers.map((t) => (
+                    {item.tickers.map((t, tIdx) => (
                       <span
-                        key={t}
+                        key={`${item.id}-${t}-${tIdx}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           setSearchQuery(t);
