@@ -21,7 +21,9 @@ import {
   Clock,
   Sparkles,
   Layers,
-  Filter
+  Filter,
+  X,
+  Tag
 } from 'lucide-react';
 import { 
   MarketNewsItem, 
@@ -159,6 +161,55 @@ export const SECTOR_CONFIGS: SectorMeta[] = [
   },
 ];
 
+const QUICK_SEARCH_KEYWORDS = [
+  'NVDA',
+  'AI',
+  'AAPL',
+  'OPEC',
+  'Yield',
+  'Fed',
+  'Chips',
+  'Crude',
+  'Gold',
+  'Consumer',
+];
+
+function HighlightText({ text, query }: { text: string; query: string }) {
+  if (!text || !query || !query.trim()) return <>{text}</>;
+
+  const cleanQuery = query.trim().replace(/^\$/, '');
+  if (!cleanQuery) return <>{text}</>;
+
+  const escaped = cleanQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const tokens = escaped.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return <>{text}</>;
+
+  try {
+    const regex = new RegExp(`(${tokens.join('|')})`, 'gi');
+    const parts = text.split(regex);
+
+    return (
+      <>
+        {parts.map((part, i) => {
+          const isMatch = tokens.some((t) => t.toLowerCase() === part.toLowerCase());
+          return isMatch ? (
+            <mark
+              key={i}
+              className="bg-amber-400/25 text-amber-200 font-semibold px-0.5 rounded border-b border-amber-400/50"
+            >
+              {part}
+            </mark>
+          ) : (
+            <span key={i}>{part}</span>
+          );
+        })}
+      </>
+    );
+  } catch {
+    return <>{text}</>;
+  }
+}
+
 export function MarketNewsWidget({
   onBroadcastAlert,
   audioEnabled = false,
@@ -182,6 +233,25 @@ export function MarketNewsWidget({
   );
 
   const listContainerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Global keyboard shortcut: press "/" anywhere to focus search input
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        return;
+      }
+      if (e.key === '/') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Sync sound setting if parent audio toggled
   useEffect(() => {
@@ -220,8 +290,7 @@ export function MarketNewsWidget({
     setIsLoading(true);
     try {
       const data = await fetchMarketNewsApi(
-        sectorsToFetch.length === ALL_SECTORS.length ? undefined : sectorsToFetch,
-        searchQuery
+        sectorsToFetch.length === ALL_SECTORS.length ? undefined : sectorsToFetch
       );
       setHeadlines((prev) => {
         // Merge without losing freshly injected ticks
@@ -241,7 +310,7 @@ export function MarketNewsWidget({
     } finally {
       setIsLoading(false);
     }
-  }, [selectedSectors, searchQuery]);
+  }, [selectedSectors]);
 
   // Simulated live news ticker stream: pushes incoming wire every interval
   useEffect(() => {
@@ -308,15 +377,29 @@ export function MarketNewsWidget({
       if (sentimentFilter !== 'ALL' && item.sentiment !== sentimentFilter) {
         return false;
       }
-      // Search filter (headline, summary, ticker, source)
+      // Real-time keyword search filter (headline, summary, ticker, source, sector)
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchesHeadline = item.headline.toLowerCase().includes(q);
-        const matchesSummary = item.summary?.toLowerCase().includes(q) || false;
-        const matchesSource = item.source.toLowerCase().includes(q);
-        const matchesTicker = item.tickers.some((t) => t.toLowerCase().includes(q));
-        if (!matchesHeadline && !matchesSummary && !matchesSource && !matchesTicker) {
-          return false;
+        const rawQ = searchQuery.trim().toLowerCase();
+        const cleanTokens = rawQ
+          .split(/\s+/)
+          .map((t) => t.replace(/^\$/, ''))
+          .filter(Boolean);
+
+        if (cleanTokens.length > 0) {
+          const headlineText = item.headline.toLowerCase();
+          const summaryText = (item.summary || '').toLowerCase();
+          const sourceText = item.source.toLowerCase();
+          const sectorText = item.sector.toLowerCase();
+          const sectorLabel = (item.sector === 'TECH' ? 'ai semis semiconductor' : item.sector).toLowerCase();
+          const tickersJoined = item.tickers.map((t) => t.toLowerCase()).join(' ');
+
+          const fullSearchableCorpus = `${headlineText} ${summaryText} ${sourceText} ${sectorText} ${sectorLabel} ${tickersJoined}`;
+
+          // All entered tokens must be present in the news item corpus
+          const allTokensMatched = cleanTokens.every((token) => fullSearchableCorpus.includes(token));
+          if (!allTokensMatched) {
+            return false;
+          }
         }
       }
       return true;
@@ -690,55 +773,144 @@ export function MarketNewsWidget({
         </div>
       )}
 
-      {/* Search & Sentiment Quick Filter Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 border-b border-neutral-800/80 bg-[#060a0e] text-[11px]">
-        {/* Search Input */}
-        <div className="relative flex-1 min-w-[160px] max-w-sm">
-          <Search className="w-3 h-3 text-neutral-500 absolute left-2 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search headline, ticker ($NVDA, $XOM, $JPM), source..."
-            className="w-full pl-7 pr-6 py-1 bg-neutral-950 border border-neutral-800 focus:border-cyan-500 focus:outline-none rounded text-[11px] font-mono text-slate-200 placeholder-neutral-600 transition-colors"
-          />
+      {/* Real-Time Keyword Search Bar & Quick Toggles */}
+      <div className="px-3 py-2 border-b border-neutral-800/80 bg-[#060a0e] space-y-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+          {/* Main Search Input */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="w-3.5 h-3.5 text-cyan-500 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setSearchQuery('');
+                  searchInputRef.current?.blur();
+                }
+              }}
+              placeholder="Search headlines in real-time (keyword, ticker $NVDA, topic, source)..."
+              className="w-full pl-8 pr-28 py-1.5 bg-[#04080c] border border-neutral-800 hover:border-neutral-700 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-500/30 focus:outline-none rounded text-[11px] font-mono text-slate-100 placeholder-neutral-500 transition-all shadow-[inset_0_1px_3px_rgba(0,0,0,0.6)]"
+            />
+
+            {/* Right side inside input: Match Count Badge & Clear Button & Keyboard hint */}
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+              {searchQuery ? (
+                <>
+                  <span
+                    className={`px-1.5 py-0.2 rounded text-[9px] font-mono font-bold ${
+                      filteredHeadlines.length > 0
+                        ? 'bg-cyan-950 text-cyan-300 border border-cyan-800/70'
+                        : 'bg-rose-950 text-rose-300 border border-rose-800/70'
+                    }`}
+                  >
+                    {filteredHeadlines.length} {filteredHeadlines.length === 1 ? 'match' : 'matches'}
+                  </span>
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      searchInputRef.current?.focus();
+                    }}
+                    className="p-0.5 rounded text-neutral-400 hover:text-neutral-100 hover:bg-neutral-800 transition-colors"
+                    title="Clear search (Esc)"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </>
+              ) : (
+                <span className="hidden sm:inline-block text-[9px] font-mono text-neutral-500 bg-neutral-900 border border-neutral-800 px-1 py-0.2 rounded">
+                  / to search
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Sentiment Filter Tabs */}
+          <div className="flex items-center gap-1 bg-neutral-950 border border-neutral-800 rounded p-0.5 text-[10px] shrink-0">
+            {(['ALL', 'BULLISH', 'BEARISH', 'NEUTRAL'] as const).map((sent) => (
+              <button
+                key={sent}
+                onClick={() => setSentimentFilter(sent)}
+                className={`px-2 py-0.5 rounded font-mono transition-colors ${
+                  sentimentFilter === sent
+                    ? sent === 'BULLISH'
+                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-600/60 font-bold'
+                      : sent === 'BEARISH'
+                      ? 'bg-rose-950 text-rose-300 border border-rose-600/60 font-bold'
+                      : sent === 'NEUTRAL'
+                      ? 'bg-slate-800 text-slate-200 border border-slate-600 font-bold'
+                      : 'bg-cyan-950 text-cyan-300 border border-cyan-600/60 font-bold'
+                    : 'text-neutral-400 hover:text-neutral-200'
+                }`}
+              >
+                {sent === 'BULLISH' && '▲ '}
+                {sent === 'BEARISH' && '▼ '}
+                {sent === 'NEUTRAL' && '◆ '}
+                {sent}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Quick Keyword Preset Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pt-0.5 text-[9px]">
+          <span className="flex items-center gap-1 text-neutral-500 uppercase font-bold tracking-wider shrink-0">
+            <Tag className="w-2.5 h-2.5 text-neutral-500" />
+            Quick:
+          </span>
+          {QUICK_SEARCH_KEYWORDS.map((kw) => {
+            const isActive = searchQuery.trim().toLowerCase() === kw.toLowerCase();
+            return (
+              <button
+                key={kw}
+                onClick={() => {
+                  if (isActive) {
+                    setSearchQuery('');
+                  } else {
+                    setSearchQuery(kw);
+                  }
+                }}
+                className={`px-1.5 py-0.5 rounded border transition-colors shrink-0 font-mono ${
+                  isActive
+                    ? 'bg-amber-950/80 border-amber-600 text-amber-300 font-bold shadow-[0_0_8px_rgba(245,158,11,0.2)]'
+                    : 'bg-neutral-950/80 border-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-cyan-300'
+                }`}
+                title={`Filter for "${kw}"`}
+              >
+                {kw}
+              </button>
+            );
+          })}
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300 text-xs"
-              title="Clear search"
+              className="ml-auto text-[9px] text-cyan-400 hover:text-cyan-300 underline shrink-0 cursor-pointer font-mono"
             >
-              ✕
+              Clear
             </button>
           )}
         </div>
-
-        {/* Sentiment Filter Tabs */}
-        <div className="flex items-center gap-1 bg-neutral-950 border border-neutral-800 rounded p-0.5 text-[10px]">
-          {(['ALL', 'BULLISH', 'BEARISH', 'NEUTRAL'] as const).map((sent) => (
-            <button
-              key={sent}
-              onClick={() => setSentimentFilter(sent)}
-              className={`px-2 py-0.5 rounded font-mono transition-colors ${
-                sentimentFilter === sent
-                  ? sent === 'BULLISH'
-                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-600/60 font-bold'
-                    : sent === 'BEARISH'
-                    ? 'bg-rose-950 text-rose-300 border border-rose-600/60 font-bold'
-                    : sent === 'NEUTRAL'
-                    ? 'bg-slate-800 text-slate-200 border border-slate-600 font-bold'
-                    : 'bg-cyan-950 text-cyan-300 border border-cyan-600/60 font-bold'
-                  : 'text-neutral-400 hover:text-neutral-200'
-              }`}
-            >
-              {sent === 'BULLISH' && '▲ '}
-              {sent === 'BEARISH' && '▼ '}
-              {sent === 'NEUTRAL' && '◆ '}
-              {sent}
-            </button>
-          ))}
-        </div>
       </div>
+
+      {/* Active Search Context Strip (when keyword is entered) */}
+      {searchQuery && (
+        <div className="flex items-center justify-between px-3 py-1 bg-amber-950/20 border-b border-amber-900/40 text-[10px] text-amber-300/90 font-mono">
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span>
+              FILTER: Showing <strong>{filteredHeadlines.length}</strong> {filteredHeadlines.length === 1 ? 'headline' : 'headlines'} matching <strong className="text-amber-200">"{searchQuery}"</strong>
+            </span>
+          </div>
+          <button
+            onClick={() => setSearchQuery('')}
+            className="text-[9px] text-amber-400 hover:text-amber-200 underline font-semibold flex items-center gap-1"
+          >
+            <span>Clear Filter</span>
+            <span className="text-[8px] bg-neutral-900 px-1 py-0.2 rounded border border-amber-800/60 font-mono">ESC</span>
+          </button>
+        </div>
+      )}
 
       {/* Headlines List Feed */}
       <div 
@@ -751,10 +923,14 @@ export function MarketNewsWidget({
             <p className="text-slate-300 font-medium">
               {isNoneSelected
                 ? 'All sector news feeds are currently muted.'
+                : searchQuery
+                ? `No headlines match keyword "${searchQuery}".`
                 : 'No headlines found matching active criteria.'}
             </p>
             <p className="text-[10px] text-neutral-500 max-w-sm">
-              {isNoneSelected
+              {searchQuery
+                ? `Zero results found across ${selectedSectors.length} active sectors for "${searchQuery}". Try a different ticker, keyword, or broader term.`
+                : isNoneSelected
                 ? 'Toggle on AI/Semis, Energy, Financials, or other sectors above to resume streaming financial headlines.'
                 : 'Try adjusting your sector multi-select filters, search query, or sentiment options.'}
             </p>
@@ -762,9 +938,9 @@ export function MarketNewsWidget({
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="px-2.5 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-neutral-700 text-cyan-400 text-[10px]"
+                  className="px-2.5 py-1 rounded bg-amber-950/60 border border-amber-700 hover:border-amber-500 text-amber-300 text-[10px] font-bold transition-colors"
                 >
-                  Clear Search Query
+                  Clear Search Query ("{searchQuery}")
                 </button>
               )}
               {selectedSectors.length < ALL_SECTORS.length && (
@@ -906,7 +1082,7 @@ export function MarketNewsWidget({
                   className="cursor-pointer group flex items-start justify-between gap-2 mt-1"
                 >
                   <p className="text-[12px] sm:text-[13px] leading-snug font-sans text-slate-100 group-hover:text-cyan-200 transition-colors">
-                    {item.headline}
+                    <HighlightText text={item.headline} query={searchQuery} />
                   </p>
                   <div className="shrink-0 text-neutral-600 group-hover:text-neutral-300 pt-0.5">
                     {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -916,19 +1092,38 @@ export function MarketNewsWidget({
                 {/* Associated Tickers Chips */}
                 {item.tickers && item.tickers.length > 0 && (
                   <div className="flex items-center gap-1 mt-1.5 flex-wrap">
-                    {item.tickers.map((t, tIdx) => (
-                      <span
-                        key={`${item.id}-${t}-${tIdx}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSearchQuery(t);
-                        }}
-                        className="cursor-pointer px-1.5 py-0.5 rounded bg-cyan-950/30 hover:bg-cyan-900/50 border border-cyan-800/40 hover:border-cyan-600 text-cyan-300 text-[10px] font-mono font-semibold transition-colors"
-                        title={`Filter news for ${t}`}
-                      >
-                        ${t}
-                      </span>
-                    ))}
+                    {item.tickers.map((t, tIdx) => {
+                      const cleanSearch = searchQuery.trim().toLowerCase().replace(/^\$/, '');
+                      const isTickerMatch = cleanSearch && (
+                        t.toLowerCase() === cleanSearch ||
+                        cleanSearch.includes(t.toLowerCase())
+                      );
+                      const isExactActive = cleanSearch === t.toLowerCase();
+
+                      return (
+                        <span
+                          key={`${item.id}-${t}-${tIdx}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isExactActive) {
+                              setSearchQuery('');
+                            } else {
+                              setSearchQuery(t);
+                            }
+                          }}
+                          className={`cursor-pointer px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold transition-colors ${
+                            isExactActive
+                              ? 'bg-amber-950/80 border border-amber-500 text-amber-200 font-bold shadow-[0_0_8px_rgba(245,158,11,0.25)]'
+                              : isTickerMatch
+                              ? 'bg-amber-950/40 border border-amber-600/60 text-amber-300'
+                              : 'bg-cyan-950/30 hover:bg-cyan-900/50 border border-cyan-800/40 hover:border-cyan-600 text-cyan-300'
+                          }`}
+                          title={isExactActive ? `Click to clear filter for $${t}` : `Click to filter news for $${t}`}
+                        >
+                          ${t}
+                        </span>
+                      );
+                    })}
 
                     {/* Quick action bar */}
                     <div className="ml-auto flex items-center gap-1.5">
@@ -971,7 +1166,7 @@ export function MarketNewsWidget({
                   <div className="mt-2.5 pt-2.5 border-t border-neutral-800/80 bg-neutral-950/60 p-2.5 rounded text-[11px] font-mono animate-fadeIn">
                     <div className="text-neutral-300 leading-relaxed font-sans mb-2">
                       <span className="text-cyan-400 font-mono font-bold mr-1">WIRE NOTE:</span>
-                      {item.summary}
+                      <HighlightText text={item.summary} query={searchQuery} />
                     </div>
 
                     <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-neutral-900 text-[10px] text-neutral-400">
@@ -1012,6 +1207,12 @@ export function MarketNewsWidget({
         </div>
         <div className="flex items-center gap-2">
           <span>TICK RATE: Every {streamIntervalSec}s</span>
+          {searchQuery && (
+            <>
+              <span>•</span>
+              <span className="text-amber-400 font-bold">MATCHED: {filteredHeadlines.length} WIRES</span>
+            </>
+          )}
           <span>•</span>
           <span className="text-neutral-400">CACHED: {headlines.length} WIRES</span>
         </div>
