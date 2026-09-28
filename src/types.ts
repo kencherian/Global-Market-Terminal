@@ -85,7 +85,27 @@ export type WidgetType =
   | 'precious_metals'
   | 'terminal_tape'
   | 'market_sentiment'
-  | 'market_news';
+  | 'market_news'
+  | 'market_watchlist';
+
+export type WatchlistCategory = 'Equities' | 'ETFs' | 'Crypto' | 'Forex' | 'Commodities';
+
+export interface WatchlistAsset {
+  symbol: string;
+  name: string;
+  category: WatchlistCategory;
+  price: number;
+  change: number;
+  changePercent: number;
+  dayHigh: number;
+  dayLow: number;
+  volume: string;
+  sparkline: number[];
+  currency?: string;
+  targetPrice?: number;
+  notes?: string;
+  lastUpdated?: string;
+}
 
 export type NewsSector = 
   | 'ALL'

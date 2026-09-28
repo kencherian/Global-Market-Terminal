@@ -8,13 +8,16 @@ import {
   CommodityMetal, 
   WorldClockSession, 
   TerminalAlert,
-  RsiDivergence
+  RsiDivergence,
+  WatchlistAsset
 } from './types';
 import { 
   generateAAPL60Sessions, 
   INITIAL_INDICES, 
   INITIAL_HEATMAP_STOCKS, 
   INITIAL_METALS, 
+  INITIAL_WATCHLIST_ASSETS,
+  MARKET_CATALOG_ASSETS,
   calculateWorldSessions 
 } from './services/dataAdapter';
 import { generateOfflineZip } from './services/exportBundle';
@@ -30,6 +33,7 @@ import { PreciousMetalsWidget } from './components/widgets/PreciousMetalsWidget'
 import { TerminalTapeWidget } from './components/widgets/TerminalTapeWidget';
 import { MarketSentimentWidget } from './components/widgets/MarketSentimentWidget';
 import { MarketNewsWidget } from './components/widgets/MarketNewsWidget';
+import { MarketWatchlistWidget } from './components/widgets/MarketWatchlistWidget';
 
 const STORAGE_KEY = 'mkt_terminal_layout_v3';
 
@@ -59,6 +63,16 @@ const DEFAULT_WIDGETS: WidgetConfig[] = [
     type: 'market_news',
     title: 'MARKET NEWS FEED // REAL-TIME WIRES',
     category: 'REAL-TIME WIRES',
+    colSpan: 2,
+    isVisible: true,
+    isMinimized: false,
+    isMaximized: false,
+  },
+  {
+    id: 'w-market-watchlist',
+    type: 'market_watchlist',
+    title: 'MARKET WATCHLIST // CUSTOM ASSET MONITOR',
+    category: 'WATCHLIST',
     colSpan: 2,
     isVisible: true,
     isMinimized: false,
@@ -168,6 +182,30 @@ export default function App() {
               parsed = [parsed[0], newsWidget, ...parsed.slice(1)];
             }
           }
+
+          const hasWatchlist = parsed.some((w: WidgetConfig) => w.type === 'market_watchlist');
+          if (!hasWatchlist) {
+            const watchlistWidget: WidgetConfig = {
+              id: 'w-market-watchlist',
+              type: 'market_watchlist',
+              title: 'MARKET WATCHLIST // CUSTOM ASSET MONITOR',
+              category: 'WATCHLIST',
+              colSpan: 2,
+              isVisible: true,
+              isMinimized: false,
+              isMaximized: false,
+            };
+            const newsIdx = parsed.findIndex((w: WidgetConfig) => w.type === 'market_news');
+            if (newsIdx !== -1) {
+              parsed = [
+                ...parsed.slice(0, newsIdx + 1),
+                watchlistWidget,
+                ...parsed.slice(newsIdx + 1),
+              ];
+            } else {
+              parsed = [...parsed, watchlistWidget];
+            }
+          }
           return parsed;
         }
       }
@@ -206,6 +244,57 @@ export default function App() {
   const [heatmapData, setHeatmapData] = useState<HeatmapStock[]>(INITIAL_HEATMAP_STOCKS);
   const [metalsData, setMetalsData] = useState<CommodityMetal[]>(INITIAL_METALS);
   const [worldSessions, setWorldSessions] = useState<WorldClockSession[]>(() => calculateWorldSessions());
+
+  // User Custom Watchlist Dataset with persistence
+  const [watchlistData, setWatchlistData] = useState<WatchlistAsset[]>(() => {
+    try {
+      const saved = localStorage.getItem('mkt_user_watchlist_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to parse watchlist from localStorage', e);
+    }
+    return INITIAL_WATCHLIST_ASSETS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('mkt_user_watchlist_v1', JSON.stringify(watchlistData));
+    } catch (e) {
+      console.warn('Failed to save watchlist to localStorage', e);
+    }
+  }, [watchlistData]);
+
+  const handleAddWatchlistAsset = useCallback((asset: WatchlistAsset) => {
+    setWatchlistData((prev) => {
+      if (prev.some((a) => a.symbol.toUpperCase() === asset.symbol.toUpperCase())) {
+        return prev;
+      }
+      return [asset, ...prev];
+    });
+  }, []);
+
+  const handleRemoveWatchlistAsset = useCallback((symbol: string) => {
+    setWatchlistData((prev) => prev.filter((a) => a.symbol.toUpperCase() !== symbol.toUpperCase()));
+  }, []);
+
+  const handleResetWatchlistAssets = useCallback((presetSymbols?: string[]) => {
+    if (presetSymbols && presetSymbols.length > 0) {
+      const lookup = new Map(MARKET_CATALOG_ASSETS.map((a) => [a.symbol.toUpperCase(), a]));
+      const newItems: WatchlistAsset[] = [];
+      presetSymbols.forEach((sym) => {
+        const found = lookup.get(sym.toUpperCase());
+        if (found) newItems.push(found);
+      });
+      setWatchlistData(newItems.length > 0 ? newItems : INITIAL_WATCHLIST_ASSETS);
+    } else {
+      setWatchlistData(INITIAL_WATCHLIST_ASSETS);
+    }
+  }, []);
 
   // Flash highlight animations
   const [flashSymbols, setFlashSymbols] = useState<Set<string>>(new Set());
@@ -485,7 +574,65 @@ export default function App() {
         }
       }
 
-      // 5. Random Orderbook stream event
+      // 5. Watchlist Micro-Tick Update
+      if (randEvent < 0.45) {
+        let tickedSymbol = '';
+        setWatchlistData((prev) => {
+          if (!prev.length) return prev;
+          const randomAssetIdx = Math.floor(Math.random() * prev.length);
+          const target = prev[randomAssetIdx];
+          if (!target) return prev;
+          tickedSymbol = target.symbol;
+
+          const isForex = target.category === 'Forex';
+          const isCrypto = target.category === 'Crypto';
+
+          const deltaPct = (Math.random() - 0.48) * (isCrypto ? 0.35 : isForex ? 0.04 : 0.18);
+          let newPrice = target.price * (1 + deltaPct / 100);
+          newPrice = isForex ? Math.round(newPrice * 10000) / 10000 : Math.round(newPrice * 100) / 100;
+
+          const newChg = isForex
+            ? Math.round((target.change + (newPrice - target.price)) * 10000) / 10000
+            : Math.round((target.change + (newPrice - target.price)) * 100) / 100;
+          const newPct = Math.round((target.changePercent + deltaPct) * 100) / 100;
+
+          const newSparkline = [...(target.sparkline || [target.price])];
+          newSparkline.push(newPrice);
+          if (newSparkline.length > 8) {
+            newSparkline.shift();
+          }
+
+          const next = [...prev];
+          next[randomAssetIdx] = {
+            ...target,
+            price: newPrice,
+            change: newChg,
+            changePercent: newPct,
+            dayHigh: Math.max(target.dayHigh, newPrice),
+            dayLow: Math.min(target.dayLow, newPrice),
+            sparkline: newSparkline,
+            lastUpdated: new Date().toLocaleTimeString(),
+          };
+          return next;
+        });
+
+        if (tickedSymbol) {
+          setFlashSymbols((prev) => {
+            const n = new Set(prev);
+            n.add(tickedSymbol);
+            return n;
+          });
+          setTimeout(() => {
+            setFlashSymbols((prev) => {
+              const n = new Set(prev);
+              n.delete(tickedSymbol);
+              return n;
+            });
+          }, 500);
+        }
+      }
+
+      // 6. Random Orderbook stream event
       if (randEvent < 0.25) {
         const now = new Date();
         const timeStr = `${now.toISOString().substring(11, 19)}.${Math.floor(Math.random() * 900 + 100)}`;
@@ -612,6 +759,18 @@ export default function App() {
       case 'market_news':
         return (
           <MarketNewsWidget
+            onBroadcastAlert={handleBroadcastAlert}
+            audioEnabled={audioEnabled}
+          />
+        );
+      case 'market_watchlist':
+        return (
+          <MarketWatchlistWidget
+            assets={watchlistData}
+            flashSymbols={flashSymbols}
+            onAddAsset={handleAddWatchlistAsset}
+            onRemoveAsset={handleRemoveWatchlistAsset}
+            onResetAssets={handleResetWatchlistAssets}
             onBroadcastAlert={handleBroadcastAlert}
             audioEnabled={audioEnabled}
           />
