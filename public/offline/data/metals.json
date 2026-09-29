@@ -1,0 +1,156 @@
+[
+  {
+    "symbol": "XAU/USD",
+    "name": "Gold Spot",
+    "category": "Metals",
+    "unit": "oz",
+    "bid": 2658.4,
+    "ask": 2658.9,
+    "last": 2658.65,
+    "change": 14.3,
+    "changePercent": 0.54,
+    "high24h": 2665.2,
+    "low24h": 2641.8,
+    "sparkline": [
+      2642,
+      2648,
+      2651,
+      2649,
+      2663,
+      2655,
+      2658
+    ]
+  },
+  {
+    "symbol": "XAG/USD",
+    "name": "Silver Spot",
+    "category": "Metals",
+    "unit": "oz",
+    "bid": 31.42,
+    "ask": 31.46,
+    "last": 31.44,
+    "change": 0.48,
+    "changePercent": 1.55,
+    "high24h": 31.85,
+    "low24h": 30.82,
+    "sparkline": [
+      30.85,
+      31.02,
+      31.18,
+      31.1,
+      31.62,
+      31.35,
+      31.44
+    ]
+  },
+  {
+    "symbol": "XPT/USD",
+    "name": "Platinum Spot",
+    "category": "Metals",
+    "unit": "oz",
+    "bid": 994.2,
+    "ask": 996.8,
+    "last": 995.5,
+    "change": -4.8,
+    "changePercent": -0.48,
+    "high24h": 1008.5,
+    "low24h": 989.1,
+    "sparkline": [
+      1005,
+      1002,
+      998,
+      992,
+      990,
+      997,
+      995
+    ]
+  },
+  {
+    "symbol": "XPD/USD",
+    "name": "Palladium Spot",
+    "category": "Metals",
+    "unit": "oz",
+    "bid": 1018.5,
+    "ask": 1024,
+    "last": 1021.25,
+    "change": 12.75,
+    "changePercent": 1.26,
+    "high24h": 1035,
+    "low24h": 998,
+    "sparkline": [
+      1001,
+      1008,
+      1014,
+      1012,
+      1028,
+      1019,
+      1021
+    ]
+  },
+  {
+    "symbol": "WTI/USD",
+    "name": "Crude Oil (WTI)",
+    "category": "Energy",
+    "unit": "bbl",
+    "bid": 70.88,
+    "ask": 70.92,
+    "last": 70.9,
+    "change": -0.84,
+    "changePercent": -1.17,
+    "high24h": 72.15,
+    "low24h": 70.4,
+    "sparkline": [
+      71.9,
+      71.8,
+      71.2,
+      71.5,
+      70.6,
+      70.8,
+      70.9
+    ]
+  },
+  {
+    "symbol": "BRENT/USD",
+    "name": "Brent Crude",
+    "category": "Energy",
+    "unit": "bbl",
+    "bid": 74.46,
+    "ask": 74.5,
+    "last": 74.48,
+    "change": -0.72,
+    "changePercent": -0.96,
+    "high24h": 75.8,
+    "low24h": 73.95,
+    "sparkline": [
+      75.4,
+      75.3,
+      74.8,
+      75.1,
+      74.2,
+      74.3,
+      74.48
+    ]
+  },
+  {
+    "symbol": "HG/USD",
+    "name": "Copper Futures",
+    "category": "Metals",
+    "unit": "lb",
+    "bid": 4.382,
+    "ask": 4.388,
+    "last": 4.385,
+    "change": 0.045,
+    "changePercent": 1.04,
+    "high24h": 4.415,
+    "low24h": 4.32,
+    "sparkline": [
+      4.33,
+      4.35,
+      4.36,
+      4.34,
+      4.4,
+      4.37,
+      4.385
+    ]
+  }
+]
