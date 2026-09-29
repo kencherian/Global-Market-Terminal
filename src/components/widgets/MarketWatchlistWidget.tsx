@@ -4,6 +4,9 @@ import { MARKET_CATALOG_ASSETS, WATCHLIST_PRESETS } from '../../services/dataAda
 import { 
   ArrowUpRight, 
   ArrowDownRight, 
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
   Plus, 
   Search, 
   Trash2, 
@@ -39,10 +42,56 @@ export function MarketWatchlistWidget({
 }: MarketWatchlistWidgetProps) {
   const [selectedCategory, setSelectedCategory] = useState<'ALL' | WatchlistCategory>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'default' | 'changeDesc' | 'changeAsc' | 'priceDesc' | 'priceAsc' | 'alpha'>('default');
+  const [sortBy, setSortBy] = useState<'default' | 'changeDesc' | 'changeAsc' | 'priceDesc' | 'priceAsc' | 'alpha' | 'alphaDesc'>('default');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPresetsMenu, setShowPresetsMenu] = useState(false);
   const [broadcastedSymbol, setBroadcastedSymbol] = useState<string | null>(null);
+
+  // Clickable table header sort toggle
+  const handleHeaderSort = (column: 'symbol' | 'price' | 'change') => {
+    if (column === 'symbol') {
+      setSortBy((prev) => (prev === 'alpha' ? 'alphaDesc' : 'alpha'));
+    } else if (column === 'price') {
+      setSortBy((prev) => (prev === 'priceDesc' ? 'priceAsc' : 'priceDesc'));
+    } else if (column === 'change') {
+      setSortBy((prev) => (prev === 'changeDesc' ? 'changeAsc' : 'changeDesc'));
+    }
+  };
+
+  // Render header sort arrow indicator
+  const renderSortIndicator = (col: 'symbol' | 'price' | 'change') => {
+    let isActive = false;
+    let isAsc = false;
+
+    if (col === 'symbol') {
+      isActive = sortBy === 'alpha' || sortBy === 'alphaDesc';
+      isAsc = sortBy === 'alpha';
+    } else if (col === 'price') {
+      isActive = sortBy === 'priceDesc' || sortBy === 'priceAsc';
+      isAsc = sortBy === 'priceAsc';
+    } else if (col === 'change') {
+      isActive = sortBy === 'changeDesc' || sortBy === 'changeAsc';
+      isAsc = sortBy === 'changeAsc';
+    }
+
+    if (isActive) {
+      return (
+        <span className="inline-flex items-center text-cyan-400">
+          {isAsc ? (
+            <ArrowUp className="w-3 h-3 text-cyan-400 stroke-[2.5]" />
+          ) : (
+            <ArrowDown className="w-3 h-3 text-cyan-400 stroke-[2.5]" />
+          )}
+        </span>
+      );
+    }
+
+    return (
+      <span className="inline-flex items-center text-neutral-600 group-hover:text-neutral-300 transition-colors">
+        <ArrowUpDown className="w-2.5 h-2.5 opacity-60 group-hover:opacity-100" />
+      </span>
+    );
+  };
 
   // Modal custom ticker add state
   const [activeTab, setActiveTab] = useState<'catalog' | 'custom'>('catalog');
@@ -121,6 +170,7 @@ export function MarketWatchlistWidget({
       if (sortBy === 'priceDesc') return b.price - a.price;
       if (sortBy === 'priceAsc') return a.price - b.price;
       if (sortBy === 'alpha') return a.symbol.localeCompare(b.symbol);
+      if (sortBy === 'alphaDesc') return b.symbol.localeCompare(a.symbol);
       return 0;
     });
   }, [assets, selectedCategory, searchQuery, sortBy]);
@@ -351,11 +401,12 @@ export function MarketWatchlistWidget({
             className="bg-neutral-950 border border-neutral-800 rounded px-1.5 py-0.5 text-[10px] text-neutral-300 focus:outline-none focus:border-cyan-500 font-mono"
           >
             <option value="default">Default Order</option>
-            <option value="changeDesc">Gainers First (% Chg)</option>
-            <option value="changeAsc">Losers First (% Chg)</option>
+            <option value="alpha">Symbol (A → Z)</option>
+            <option value="alphaDesc">Symbol (Z → A)</option>
             <option value="priceDesc">Price (High → Low)</option>
             <option value="priceAsc">Price (Low → High)</option>
-            <option value="alpha">Alphabetical (A → Z)</option>
+            <option value="changeDesc">% Change (Gainers First)</option>
+            <option value="changeAsc">% Change (Losers First)</option>
           </select>
         </div>
       </div>
@@ -365,10 +416,69 @@ export function MarketWatchlistWidget({
         <table className="w-full text-left font-mono text-[11px] border-collapse">
           <thead>
             <tr className="text-neutral-500 text-[10px] border-b border-neutral-800 uppercase tracking-wider bg-black/30">
-              <th className="py-2 px-2.5">ASSET / TICKER</th>
-              <th className="py-2 px-2 text-right">LAST PRICE</th>
-              <th className="py-2 px-2 text-right">NET CHG</th>
-              <th className="py-2 px-2 text-right">% CHG</th>
+              {/* Clickable Symbol Header */}
+              <th 
+                onClick={() => handleHeaderSort('symbol')}
+                className={`py-2 px-2.5 cursor-pointer select-none group transition-colors ${
+                  sortBy === 'alpha' || sortBy === 'alphaDesc'
+                    ? 'text-cyan-300 font-bold bg-cyan-950/20'
+                    : 'hover:text-neutral-200'
+                }`}
+                title={`Sort by Symbol (${sortBy === 'alpha' ? 'A→Z active, click for Z→A' : sortBy === 'alphaDesc' ? 'Z→A active, click for A→Z' : 'Click to sort A→Z'})`}
+                aria-sort={sortBy === 'alpha' ? 'ascending' : sortBy === 'alphaDesc' ? 'descending' : 'none'}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>SYMBOL / ASSET</span>
+                  {renderSortIndicator('symbol')}
+                </div>
+              </th>
+
+              {/* Clickable Price Header */}
+              <th 
+                onClick={() => handleHeaderSort('price')}
+                className={`py-2 px-2 text-right cursor-pointer select-none group transition-colors ${
+                  sortBy === 'priceDesc' || sortBy === 'priceAsc'
+                    ? 'text-cyan-300 font-bold bg-cyan-950/20'
+                    : 'hover:text-neutral-200'
+                }`}
+                title={`Sort by Price (${sortBy === 'priceDesc' ? 'High→Low active, click for Low→High' : sortBy === 'priceAsc' ? 'Low→High active, click for High→Low' : 'Click to sort High→Low'})`}
+                aria-sort={sortBy === 'priceAsc' ? 'ascending' : sortBy === 'priceDesc' ? 'descending' : 'none'}
+              >
+                <div className="flex items-center justify-end gap-1.5">
+                  <span>LAST PRICE</span>
+                  {renderSortIndicator('price')}
+                </div>
+              </th>
+
+              <th 
+                onClick={() => handleHeaderSort('change')}
+                className={`py-2 px-2 text-right cursor-pointer select-none group transition-colors ${
+                  sortBy === 'changeDesc' || sortBy === 'changeAsc'
+                    ? 'text-cyan-300 font-bold bg-cyan-950/20'
+                    : 'hover:text-neutral-200'
+                }`}
+                title="Sort by Change"
+              >
+                NET CHG
+              </th>
+
+              {/* Clickable Percentage Change Header */}
+              <th 
+                onClick={() => handleHeaderSort('change')}
+                className={`py-2 px-2 text-right cursor-pointer select-none group transition-colors ${
+                  sortBy === 'changeDesc' || sortBy === 'changeAsc'
+                    ? 'text-cyan-300 font-bold bg-cyan-950/20'
+                    : 'hover:text-neutral-200'
+                }`}
+                title={`Sort by Percentage Change (${sortBy === 'changeDesc' ? 'Gainers First active, click for Losers First' : sortBy === 'changeAsc' ? 'Losers First active, click for Gainers First' : 'Click to sort Gainers First'})`}
+                aria-sort={sortBy === 'changeAsc' ? 'ascending' : sortBy === 'changeDesc' ? 'descending' : 'none'}
+              >
+                <div className="flex items-center justify-end gap-1.5">
+                  <span>% CHG</span>
+                  {renderSortIndicator('change')}
+                </div>
+              </th>
+
               <th className="py-2 px-2 text-center hidden md:table-cell">SESSION RANGE</th>
               <th className="py-2 px-2 text-right">7D / LIVE TREND</th>
               <th className="py-2 px-2 text-center w-16">ACTIONS</th>
