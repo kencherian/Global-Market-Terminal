@@ -9,8 +9,10 @@ import {
   WorldClockSession, 
   TerminalAlert,
   RsiDivergence,
-  WatchlistAsset
+  WatchlistAsset,
+  PushTerminalNotification
 } from './types';
+import { BellRing, X, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { 
   generateAAPL60Sessions, 
   INITIAL_INDICES, 
@@ -296,6 +298,32 @@ export default function App() {
     }
   }, []);
 
+  const handleToggleWatchlistAlert = useCallback((symbol: string) => {
+    setWatchlistData((prev) =>
+      prev.map((a) =>
+        a.symbol.toUpperCase() === symbol.toUpperCase()
+          ? { ...a, alertEnabled: !a.alertEnabled }
+          : a
+      )
+    );
+  }, []);
+
+  // Push-style Terminal Notifications for >2% Single-Tick moves
+  const [pushNotifications, setPushNotifications] = useState<PushTerminalNotification[]>([]);
+
+  // Auto-dismiss push notifications after 7 seconds
+  useEffect(() => {
+    if (pushNotifications.length === 0) return;
+    const timer = setTimeout(() => {
+      setPushNotifications((prev) => prev.slice(0, prev.length - 1));
+    }, 7000);
+    return () => clearTimeout(timer);
+  }, [pushNotifications]);
+
+  const handleDismissPush = useCallback((id: string) => {
+    setPushNotifications((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+
   // Flash highlight animations
   const [flashSymbols, setFlashSymbols] = useState<Set<string>>(new Set());
   const [flashTickers, setFlashTickers] = useState<Set<string>>(new Set());
@@ -577,6 +605,8 @@ export default function App() {
       // 5. Watchlist Micro-Tick Update
       if (randEvent < 0.45) {
         let tickedSymbol = '';
+        let triggeredPushNotif: PushTerminalNotification | null = null;
+
         setWatchlistData((prev) => {
           if (!prev.length) return prev;
           const randomAssetIdx = Math.floor(Math.random() * prev.length);
@@ -587,7 +617,16 @@ export default function App() {
           const isForex = target.category === 'Forex';
           const isCrypto = target.category === 'Crypto';
 
-          const deltaPct = (Math.random() - 0.48) * (isCrypto ? 0.35 : isForex ? 0.04 : 0.18);
+          // Occasional volatility spike (~15% probability) to trigger >2% moves
+          const isVolatilitySpike = Math.random() < 0.15;
+          let deltaPct: number;
+          if (isVolatilitySpike) {
+            const dir = Math.random() > 0.48 ? 1 : -1;
+            deltaPct = dir * (2.05 + Math.random() * 2.2); // 2.05% to 4.25% single-tick surge
+          } else {
+            deltaPct = (Math.random() - 0.48) * (isCrypto ? 0.35 : isForex ? 0.04 : 0.18);
+          }
+
           let newPrice = target.price * (1 + deltaPct / 100);
           newPrice = isForex ? Math.round(newPrice * 10000) / 10000 : Math.round(newPrice * 100) / 100;
 
@@ -595,6 +634,20 @@ export default function App() {
             ? Math.round((target.change + (newPrice - target.price)) * 10000) / 10000
             : Math.round((target.change + (newPrice - target.price)) * 100) / 100;
           const newPct = Math.round((target.changePercent + deltaPct) * 100) / 100;
+
+          // Check if single-tick move is > 2% and push alert is enabled for this asset
+          if (Math.abs(deltaPct) >= 2.0 && target.alertEnabled) {
+            triggeredPushNotif = {
+              id: `push-${Date.now()}-${target.symbol}-${Math.random().toString(36).substring(2, 6)}`,
+              symbol: target.symbol,
+              name: target.name,
+              deltaPct: Math.round(deltaPct * 100) / 100,
+              oldPrice: target.price,
+              newPrice: newPrice,
+              timestamp: new Date().toLocaleTimeString(),
+              direction: deltaPct > 0 ? 'up' : 'down',
+            };
+          }
 
           const newSparkline = [...(target.sparkline || [target.price])];
           newSparkline.push(newPrice);
@@ -615,6 +668,29 @@ export default function App() {
           };
           return next;
         });
+
+        // Trigger Push-Style Terminal Notification if single tick moved >2% and alert was enabled
+        if (triggeredPushNotif) {
+          const notif = triggeredPushNotif;
+          setPushNotifications((prev) => [notif, ...prev.slice(0, 3)]);
+
+          if (audioEnabledRef.current) {
+            playTerminalAlarm();
+          }
+
+          // Broadcast alert to Terminal Tape
+          const alertId = generateUniqueAlertId('push');
+          setAlerts((prev) => [
+            {
+              id: alertId,
+              timestamp: `${new Date().toISOString().substring(11, 19)}.${Math.floor(Math.random() * 900 + 100)}`,
+              level: 'SPIKE',
+              source: `PUSH::${notif.symbol}`,
+              text: `⚡ PUSH ALERT // ${notif.symbol} moved ${notif.direction === 'up' ? '+' : ''}${notif.deltaPct}% in 1 tick ($${notif.oldPrice.toFixed(2)} → $${notif.newPrice.toFixed(2)})`,
+            },
+            ...prev.slice(0, 50),
+          ]);
+        }
 
         if (tickedSymbol) {
           setFlashSymbols((prev) => {
@@ -771,6 +847,7 @@ export default function App() {
             onAddAsset={handleAddWatchlistAsset}
             onRemoveAsset={handleRemoveWatchlistAsset}
             onResetAssets={handleResetWatchlistAssets}
+            onToggleAlert={handleToggleWatchlistAlert}
             onBroadcastAlert={handleBroadcastAlert}
             audioEnabled={audioEnabled}
           />
@@ -831,6 +908,76 @@ export default function App() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Push-style Terminal Notifications Tray (Triggered when asset moves >2% in a single tick) */}
+      {pushNotifications.length > 0 && (
+        <aside 
+          aria-label="Push Terminal Notifications"
+          className="fixed top-3 right-3 sm:top-4 sm:right-4 z-50 flex flex-col gap-2 max-w-[340px] sm:max-w-sm w-full pointer-events-none"
+        >
+          {pushNotifications.map((notif) => {
+            const isUp = notif.direction === 'up';
+            return (
+              <div
+                key={notif.id}
+                role="alert"
+                className={`pointer-events-auto border-2 rounded-lg p-2.5 sm:p-3 shadow-2xl backdrop-blur-md font-mono text-xs transition-all duration-300 ${
+                  isUp
+                    ? 'bg-[#041209]/95 border-emerald-500 text-emerald-100 shadow-[0_0_30px_rgba(16,185,129,0.35)]'
+                    : 'bg-[#160408]/95 border-rose-500 text-rose-100 shadow-[0_0_30px_rgba(244,63,94,0.35)]'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 border-b pb-1.5 mb-1.5 border-neutral-800">
+                  <div className="flex items-center gap-1.5">
+                    <span className="relative flex h-2 w-2">
+                      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isUp ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                      <span className={`relative inline-flex rounded-full h-2 w-2 ${isUp ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                    </span>
+                    <span className="font-extrabold tracking-wider text-amber-300 uppercase text-[9px] bg-amber-950/80 border border-amber-600/70 px-1.5 py-0.2 rounded flex items-center gap-1">
+                      <BellRing className="w-2.5 h-2.5 text-amber-400 animate-bounce" />
+                      &gt;2% SINGLE-TICK MOVE
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleDismissPush(notif.id)}
+                    className="text-neutral-400 hover:text-white p-0.5 rounded hover:bg-neutral-800 transition-colors cursor-pointer"
+                    title="Dismiss alert"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="font-extrabold text-white text-sm tracking-wide">
+                    {notif.symbol}
+                  </span>
+                  <span
+                    className={`font-mono font-bold text-xs px-1.5 py-0.5 rounded flex items-center gap-0.5 ${
+                      isUp
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                        : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                    }`}
+                  >
+                    {isUp ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+                    {isUp ? '+' : ''}{notif.deltaPct.toFixed(2)}%
+                  </span>
+                </div>
+
+                <div className="mt-1 text-[11px] text-neutral-300 flex items-center justify-between">
+                  <span>
+                    ${notif.oldPrice.toFixed(2)} <span className="text-neutral-500">→</span> <strong className="text-white font-bold">${notif.newPrice.toFixed(2)}</strong>
+                  </span>
+                  <span className="text-[9px] text-neutral-400">{notif.timestamp}</span>
+                </div>
+
+                <div className="mt-1 text-[10px] text-neutral-400 truncate">
+                  {notif.name}
+                </div>
+              </div>
+            );
+          })}
+        </aside>
       )}
 
       {/* Top terminal status & controls bar */}

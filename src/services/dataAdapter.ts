@@ -525,6 +525,7 @@ export const INITIAL_WATCHLIST_ASSETS: WatchlistAsset[] = [
     currency: 'USD',
     targetPrice: 145.00,
     notes: 'Enterprise AI demand and B200 accelerator volume ramp',
+    alertEnabled: true,
   },
   {
     symbol: 'TSLA',
@@ -540,6 +541,7 @@ export const INITIAL_WATCHLIST_ASSETS: WatchlistAsset[] = [
     currency: 'USD',
     targetPrice: 275.00,
     notes: 'Robotaxi deployment & FSD software milestone approvals',
+    alertEnabled: false,
   },
   {
     symbol: 'PLTR',
@@ -555,6 +557,7 @@ export const INITIAL_WATCHLIST_ASSETS: WatchlistAsset[] = [
     currency: 'USD',
     targetPrice: 50.00,
     notes: 'AIP platform customer conversions and S&P 500 inclusion inflows',
+    alertEnabled: false,
   },
   {
     symbol: 'AAPL',
@@ -570,6 +573,7 @@ export const INITIAL_WATCHLIST_ASSETS: WatchlistAsset[] = [
     currency: 'USD',
     targetPrice: 240.00,
     notes: 'Apple Intelligence rollout & silicon photonics packaging',
+    alertEnabled: false,
   },
   {
     symbol: 'BTC-USD',
@@ -585,6 +589,7 @@ export const INITIAL_WATCHLIST_ASSETS: WatchlistAsset[] = [
     currency: 'USD',
     targetPrice: 68000.00,
     notes: 'Institutional ETF accumulation and global liquidity easing',
+    alertEnabled: true,
   },
   {
     symbol: 'QQQ',
@@ -600,6 +605,7 @@ export const INITIAL_WATCHLIST_ASSETS: WatchlistAsset[] = [
     currency: 'USD',
     targetPrice: 505.00,
     notes: 'Tech benchmark tracking Nasdaq-100 mega-caps',
+    alertEnabled: false,
   },
   {
     symbol: 'XOM',
@@ -615,6 +621,7 @@ export const INITIAL_WATCHLIST_ASSETS: WatchlistAsset[] = [
     currency: 'USD',
     targetPrice: 130.00,
     notes: 'Permian basin production and downstream refining margins',
+    alertEnabled: false,
   },
   {
     symbol: 'EUR/USD',
@@ -630,6 +637,7 @@ export const INITIAL_WATCHLIST_ASSETS: WatchlistAsset[] = [
     currency: 'USD',
     targetPrice: 1.0950,
     notes: 'ECB rate cut trajectory relative to FOMC terminal guidance',
+    alertEnabled: false,
   },
 ];
 

@@ -7,6 +7,8 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  Bell,
+  BellRing,
   Plus, 
   Search, 
   Trash2, 
@@ -28,6 +30,7 @@ interface MarketWatchlistWidgetProps {
   onAddAsset: (asset: WatchlistAsset) => void;
   onRemoveAsset: (symbol: string) => void;
   onResetAssets: (presetSymbols?: string[]) => void;
+  onToggleAlert?: (symbol: string) => void;
   onBroadcastAlert?: (alert: { level: 'INFO' | 'NOTICE' | 'SPIKE' | 'WARNING'; source: string; text: string }) => void;
   audioEnabled?: boolean;
 }
@@ -38,6 +41,7 @@ export function MarketWatchlistWidget({
   onAddAsset,
   onRemoveAsset,
   onResetAssets,
+  onToggleAlert,
   onBroadcastAlert,
 }: MarketWatchlistWidgetProps) {
   const [selectedCategory, setSelectedCategory] = useState<'ALL' | WatchlistCategory>('ALL');
@@ -128,10 +132,12 @@ export function MarketWatchlistWidget({
     let advancers = 0;
     let decliners = 0;
     let sumPercent = 0;
+    let armedAlerts = 0;
 
     assets.forEach((a) => {
       if (a.changePercent > 0) advancers++;
       else if (a.changePercent < 0) decliners++;
+      if (a.alertEnabled) armedAlerts++;
       sumPercent += a.changePercent;
     });
 
@@ -141,6 +147,7 @@ export function MarketWatchlistWidget({
       advancers,
       decliners,
       avgReturn,
+      armedAlerts,
       breadthRatio: total > 0 ? (advancers / total) * 100 : 50,
     };
   }, [assets]);
@@ -278,6 +285,14 @@ export function MarketWatchlistWidget({
             <span className="text-neutral-500">AVG RETURN:</span>
             <span className={`font-bold ${metrics.avgReturn >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
               {metrics.avgReturn >= 0 ? '+' : ''}{metrics.avgReturn.toFixed(2)}%
+            </span>
+          </div>
+
+          <div className="hidden lg:flex items-center gap-1.5 border-l border-neutral-800 pl-2.5">
+            <Bell className={`w-3 h-3 ${metrics.armedAlerts > 0 ? 'text-amber-400 animate-pulse' : 'text-neutral-600'}`} />
+            <span className="text-neutral-500">&gt;2% ALERTS:</span>
+            <span className={`font-bold ${metrics.armedAlerts > 0 ? 'text-amber-400' : 'text-neutral-400'}`}>
+              {metrics.armedAlerts} ARMED
             </span>
           </div>
         </div>
@@ -481,7 +496,7 @@ export function MarketWatchlistWidget({
 
               <th className="py-2 px-2 text-center hidden md:table-cell">SESSION RANGE</th>
               <th className="py-2 px-2 text-right">7D / LIVE TREND</th>
-              <th className="py-2 px-2 text-center w-16">ACTIONS</th>
+              <th className="py-2 px-2 text-center min-w-[85px]">ACTIONS</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-800/40">
@@ -556,6 +571,15 @@ export function MarketWatchlistWidget({
                         }`}>
                           {asset.category.toUpperCase()}
                         </span>
+                        {asset.alertEnabled && (
+                          <span 
+                            className="inline-flex items-center gap-0.5 text-[8px] px-1 py-0.2 rounded bg-amber-950/80 text-amber-300 border border-amber-600/50"
+                            title="Push alerts armed for >2% moves"
+                          >
+                            <Bell className="w-2 h-2 text-amber-400" />
+                            <span>&gt;2%</span>
+                          </span>
+                        )}
                       </div>
                       <div className="text-[10px] text-neutral-400 truncate max-w-[150px] sm:max-w-[200px]">
                         {asset.name}
@@ -616,9 +640,31 @@ export function MarketWatchlistWidget({
                       </svg>
                     </td>
 
-                    {/* Actions: Broadcast Alert & Delete */}
+                    {/* Actions: Bell Alert Toggle, Broadcast Alert & Delete */}
                     <td className="py-2.5 px-2 text-center">
                       <div className="flex items-center justify-center gap-1">
+                        {/* Bell Notification Toggle for >2% Single-Tick moves */}
+                        <button
+                          onClick={() => onToggleAlert?.(asset.symbol)}
+                          className={`p-1 rounded border transition-all ${
+                            asset.alertEnabled
+                              ? 'bg-amber-950/80 border-amber-500/80 text-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.25)] hover:border-amber-400 hover:text-amber-200'
+                              : 'bg-neutral-900 border-neutral-800 text-neutral-600 hover:text-neutral-300 hover:border-neutral-700'
+                          }`}
+                          title={
+                            asset.alertEnabled
+                              ? `Push Notification ARMED for ${asset.symbol}: Alerts when moving >2% in a single tick. Click to disable.`
+                              : `Enable Push Notification for ${asset.symbol}: Triggers terminal notification when price moves >2% in a single tick. Click to enable.`
+                          }
+                          aria-label={`Toggle >2% tick push alert for ${asset.symbol}`}
+                        >
+                          {asset.alertEnabled ? (
+                            <BellRing className="w-3 h-3 text-amber-400 animate-pulse" />
+                          ) : (
+                            <Bell className="w-3 h-3" />
+                          )}
+                        </button>
+
                         {/* Broadcast to Tape */}
                         {onBroadcastAlert && (
                           <button

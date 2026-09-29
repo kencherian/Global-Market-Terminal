@@ -105,6 +105,18 @@ export interface WatchlistAsset {
   targetPrice?: number;
   notes?: string;
   lastUpdated?: string;
+  alertEnabled?: boolean; // Bell toggle: triggers push-style terminal notification if price moves >2% in a single tick
+}
+
+export interface PushTerminalNotification {
+  id: string;
+  symbol: string;
+  name: string;
+  deltaPct: number;
+  oldPrice: number;
+  newPrice: number;
+  timestamp: string;
+  direction: 'up' | 'down';
 }
 
 export type NewsSector = 
