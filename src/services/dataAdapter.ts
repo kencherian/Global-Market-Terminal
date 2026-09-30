@@ -932,3 +932,223 @@ export const WATCHLIST_PRESETS: { id: string; name: string; tag: string; symbols
     symbols: ['XOM', 'JPM', 'GS', 'WTI', 'GLD', 'SPY', 'TLT'],
   },
 ];
+
+import { TreasuryYield } from '../types';
+
+export const INITIAL_TREASURY_YIELDS: TreasuryYield[] = [
+  {
+    tenor: '1M',
+    name: '1-Month T-Bill',
+    years: 1 / 12,
+    yield: 4.75,
+    changeBps: -1.2,
+    oneMonthAgo: 5.10,
+    oneYearAgo: 5.45,
+    dayLow: 4.74,
+    dayHigh: 4.78,
+    sparkline: [4.80, 4.78, 4.77, 4.76, 4.75],
+    coupon: 4.75,
+  },
+  {
+    tenor: '3M',
+    name: '3-Month Benchmark Bill',
+    years: 0.25,
+    yield: 4.62,
+    changeBps: -2.0,
+    oneMonthAgo: 4.95,
+    oneYearAgo: 5.42,
+    dayLow: 4.60,
+    dayHigh: 4.65,
+    sparkline: [4.68, 4.66, 4.64, 4.63, 4.62],
+    coupon: 4.62,
+  },
+  {
+    tenor: '6M',
+    name: '6-Month T-Bill',
+    years: 0.5,
+    yield: 4.45,
+    changeBps: -1.8,
+    oneMonthAgo: 4.78,
+    oneYearAgo: 5.35,
+    dayLow: 4.43,
+    dayHigh: 4.48,
+    sparkline: [4.50, 4.48, 4.46, 4.45, 4.45],
+    coupon: 4.45,
+  },
+  {
+    tenor: '1Y',
+    name: '1-Year Treasury Note',
+    years: 1.0,
+    yield: 4.12,
+    changeBps: -2.5,
+    oneMonthAgo: 4.42,
+    oneYearAgo: 5.15,
+    dayLow: 4.10,
+    dayHigh: 4.16,
+    sparkline: [4.18, 4.15, 4.14, 4.13, 4.12],
+    coupon: 4.12,
+  },
+  {
+    tenor: '2Y',
+    name: '2-Year Benchmark Note',
+    years: 2.0,
+    yield: 3.78,
+    changeBps: 1.4,
+    oneMonthAgo: 3.92,
+    oneYearAgo: 4.90,
+    dayLow: 3.75,
+    dayHigh: 3.81,
+    sparkline: [3.74, 3.76, 3.75, 3.77, 3.78],
+    coupon: 3.75,
+  },
+  {
+    tenor: '3Y',
+    name: '3-Year Treasury Note',
+    years: 3.0,
+    yield: 3.72,
+    changeBps: 1.1,
+    oneMonthAgo: 3.82,
+    oneYearAgo: 4.65,
+    dayLow: 3.70,
+    dayHigh: 3.74,
+    sparkline: [3.69, 3.71, 3.70, 3.71, 3.72],
+    coupon: 3.65,
+  },
+  {
+    tenor: '5Y',
+    name: '5-Year Benchmark Note',
+    years: 5.0,
+    yield: 3.75,
+    changeBps: 2.2,
+    oneMonthAgo: 3.78,
+    oneYearAgo: 4.45,
+    dayLow: 3.72,
+    dayHigh: 3.77,
+    sparkline: [3.71, 3.73, 3.72, 3.74, 3.75],
+    coupon: 3.75,
+  },
+  {
+    tenor: '7Y',
+    name: '7-Year Treasury Note',
+    years: 7.0,
+    yield: 3.86,
+    changeBps: 2.8,
+    oneMonthAgo: 3.85,
+    oneYearAgo: 4.48,
+    dayLow: 3.83,
+    dayHigh: 3.88,
+    sparkline: [3.82, 3.84, 3.83, 3.85, 3.86],
+    coupon: 3.88,
+  },
+  {
+    tenor: '10Y',
+    name: '10-Year Benchmark Note',
+    years: 10.0,
+    yield: 3.98,
+    changeBps: 3.5,
+    oneMonthAgo: 3.90,
+    oneYearAgo: 4.52,
+    dayLow: 3.94,
+    dayHigh: 4.01,
+    sparkline: [3.92, 3.95, 3.94, 3.97, 3.98],
+    coupon: 4.00,
+  },
+  {
+    tenor: '20Y',
+    name: '20-Year Treasury Bond',
+    years: 20.0,
+    yield: 4.32,
+    changeBps: 2.6,
+    oneMonthAgo: 4.22,
+    oneYearAgo: 4.82,
+    dayLow: 4.29,
+    dayHigh: 4.35,
+    sparkline: [4.28, 4.30, 4.29, 4.31, 4.32],
+    coupon: 4.25,
+  },
+  {
+    tenor: '30Y',
+    name: '30-Year Benchmark Bond',
+    years: 30.0,
+    yield: 4.28,
+    changeBps: 2.9,
+    oneMonthAgo: 4.18,
+    oneYearAgo: 4.70,
+    dayLow: 4.25,
+    dayHigh: 4.31,
+    sparkline: [4.24, 4.26, 4.25, 4.27, 4.28],
+    coupon: 4.25,
+  },
+];
+
+// Econometric Recession Probability calculation based on NY Fed (Estrella & Mishkin)
+// Probit Model: P(Recession in 12M) = Phi(-0.5333 - 0.6330 * (10Y - 3M spread in %))
+export function calculateEstrellaMishkinRecessionProb(yield10y: number, yield3m: number): number {
+  const spread = yield10y - yield3m;
+  const z = -0.5333 - 0.6330 * spread;
+  // Logistic probit approximation
+  const prob = 1 / (1 + Math.exp(-1.6 * z));
+  return Math.max(1, Math.min(99, Math.round(prob * 1000) / 10));
+}
+
+// Preset historical & hypothetical rate curve scenarios for stress-testing
+export interface YieldCurveScenario {
+  id: string;
+  name: string;
+  tag: string;
+  description: string;
+  yieldOverrides: Record<string, number>;
+}
+
+export const YIELD_CURVE_SCENARIOS: YieldCurveScenario[] = [
+  {
+    id: 'current-live',
+    name: 'Current Live Market',
+    tag: 'LIVE',
+    description: 'Current US Treasury curve: 2Y/10Y uninverting (+20 bps), 3M/10Y still inverted (-64 bps).',
+    yieldOverrides: {
+      '1M': 4.75, '3M': 4.62, '6M': 4.45, '1Y': 4.12, '2Y': 3.78,
+      '3Y': 3.72, '5Y': 3.75, '7Y': 3.86, '10Y': 3.98, '20Y': 4.32, '30Y': 4.28,
+    },
+  },
+  {
+    id: 'deep-inversion-2023',
+    name: 'July 2023 Peak Inversion',
+    tag: 'INVERTED',
+    description: 'Deepest inversion since 1981: 2Y at 5.08%, 10Y at 3.96% (2Y/10Y = -112 bps, 3M/10Y = -154 bps).',
+    yieldOverrides: {
+      '1M': 5.48, '3M': 5.50, '6M': 5.42, '1Y': 5.35, '2Y': 5.08,
+      '3Y': 4.70, '5Y': 4.25, '7Y': 4.10, '10Y': 3.96, '20Y': 4.20, '30Y': 4.02,
+    },
+  },
+  {
+    id: 'bull-steepener',
+    name: 'Aggressive Fed Easing',
+    tag: 'BULL STEEP',
+    description: 'Rapid 150 bps rate cuts by FOMC: Short rates plunge, 2Y drops to 2.45%, 10Y steady at 3.85% (+140 bps spread).',
+    yieldOverrides: {
+      '1M': 3.00, '3M': 2.75, '6M': 2.60, '1Y': 2.50, '2Y': 2.45,
+      '3Y': 2.80, '5Y': 3.25, '7Y': 3.55, '10Y': 3.85, '20Y': 4.20, '30Y': 4.35,
+    },
+  },
+  {
+    id: 'bear-flattener',
+    name: 'Stagflation Hawkish Shock',
+    tag: 'BEAR FLAT',
+    description: 'Inflation re-accelerates: Fed hikes terminal rate to 6.0%, inverted front-end across all tenors.',
+    yieldOverrides: {
+      '1M': 5.85, '3M': 5.80, '6M': 5.65, '1Y': 5.50, '2Y': 5.40,
+      '3Y': 5.20, '5Y': 4.95, '7Y': 4.80, '10Y': 4.70, '20Y': 4.90, '30Y': 4.75,
+    },
+  },
+  {
+    id: 'historical-normal',
+    name: 'Historical Healthy Expansion',
+    tag: 'NORMAL',
+    description: 'Classic upward-sloping term premium: Short-end anchored at 2.50%, 10Y at 4.25%, 30Y at 4.70% (2Y/10Y = +125 bps).',
+    yieldOverrides: {
+      '1M': 2.25, '3M': 2.40, '6M': 2.65, '1Y': 2.85, '2Y': 3.00,
+      '3Y': 3.30, '5Y': 3.75, '7Y': 4.00, '10Y': 4.25, '20Y': 4.55, '30Y': 4.70,
+    },
+  },
+];

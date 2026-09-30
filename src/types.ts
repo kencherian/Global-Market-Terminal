@@ -86,7 +86,22 @@ export type WidgetType =
   | 'terminal_tape'
   | 'market_sentiment'
   | 'market_news'
-  | 'market_watchlist';
+  | 'market_watchlist'
+  | 'yield_curve';
+
+export interface TreasuryYield {
+  tenor: string;        // '1M', '3M', '6M', '1Y', '2Y', '3Y', '5Y', '7Y', '10Y', '20Y', '30Y'
+  name: string;         // '3-Month Bill', '2-Year Benchmark', etc.
+  years: number;        // Maturity in years: 1/12, 0.25, 0.5, 1, 2, 3, 5, 7, 10, 20, 30
+  yield: number;        // e.g. 4.28 (%)
+  changeBps: number;    // e.g. -2.4 (basis points change on day)
+  oneMonthAgo: number;  // e.g. 4.45 (%)
+  oneYearAgo: number;   // e.g. 4.85 (%)
+  dayHigh: number;
+  dayLow: number;
+  sparkline: number[];
+  coupon?: number;
+}
 
 export type WatchlistCategory = 'Equities' | 'ETFs' | 'Crypto' | 'Forex' | 'Commodities';
 

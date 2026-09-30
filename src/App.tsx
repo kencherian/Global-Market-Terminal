@@ -10,7 +10,8 @@ import {
   TerminalAlert,
   RsiDivergence,
   WatchlistAsset,
-  PushTerminalNotification
+  PushTerminalNotification,
+  TreasuryYield
 } from './types';
 import { BellRing, X, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { 
@@ -19,6 +20,7 @@ import {
   INITIAL_HEATMAP_STOCKS, 
   INITIAL_METALS, 
   INITIAL_WATCHLIST_ASSETS,
+  INITIAL_TREASURY_YIELDS,
   MARKET_CATALOG_ASSETS,
   calculateWorldSessions 
 } from './services/dataAdapter';
@@ -36,6 +38,7 @@ import { TerminalTapeWidget } from './components/widgets/TerminalTapeWidget';
 import { MarketSentimentWidget } from './components/widgets/MarketSentimentWidget';
 import { MarketNewsWidget } from './components/widgets/MarketNewsWidget';
 import { MarketWatchlistWidget } from './components/widgets/MarketWatchlistWidget';
+import { YieldCurveWidget } from './components/widgets/YieldCurveWidget';
 
 const STORAGE_KEY = 'mkt_terminal_layout_v3';
 
@@ -75,6 +78,16 @@ const DEFAULT_WIDGETS: WidgetConfig[] = [
     type: 'market_watchlist',
     title: 'MARKET WATCHLIST // CUSTOM ASSET MONITOR',
     category: 'WATCHLIST',
+    colSpan: 2,
+    isVisible: true,
+    isMinimized: false,
+    isMaximized: false,
+  },
+  {
+    id: 'w-yield-curve',
+    type: 'yield_curve',
+    title: 'US TREASURY YIELD CURVE // 2Y-10Y INVERSION & RECESSION GAUGE',
+    category: 'MACRO & RATES',
     colSpan: 2,
     isVisible: true,
     isMinimized: false,
@@ -208,6 +221,30 @@ export default function App() {
               parsed = [...parsed, watchlistWidget];
             }
           }
+
+          const hasYieldCurve = parsed.some((w: WidgetConfig) => w.type === 'yield_curve');
+          if (!hasYieldCurve) {
+            const yieldCurveWidget: WidgetConfig = {
+              id: 'w-yield-curve',
+              type: 'yield_curve',
+              title: 'US TREASURY YIELD CURVE // 2Y-10Y INVERSION & RECESSION GAUGE',
+              category: 'MACRO & RATES',
+              colSpan: 2,
+              isVisible: true,
+              isMinimized: false,
+              isMaximized: false,
+            };
+            const watchlistIdx = parsed.findIndex((w: WidgetConfig) => w.type === 'market_watchlist');
+            if (watchlistIdx !== -1) {
+              parsed = [
+                ...parsed.slice(0, watchlistIdx + 1),
+                yieldCurveWidget,
+                ...parsed.slice(watchlistIdx + 1),
+              ];
+            } else {
+              parsed = [...parsed, yieldCurveWidget];
+            }
+          }
           return parsed;
         }
       }
@@ -323,6 +360,10 @@ export default function App() {
   const handleDismissPush = useCallback((id: string) => {
     setPushNotifications((prev) => prev.filter((p) => p.id !== id));
   }, []);
+
+  // US Treasury Yields state & flash tenors
+  const [yieldData, setYieldData] = useState<TreasuryYield[]>(INITIAL_TREASURY_YIELDS);
+  const [flashTenors, setFlashTenors] = useState<Set<string>>(new Set());
 
   // Flash highlight animations
   const [flashSymbols, setFlashSymbols] = useState<Set<string>>(new Set());
@@ -708,7 +749,54 @@ export default function App() {
         }
       }
 
-      // 6. Random Orderbook stream event
+      // 6. US Treasury Yield Micro-Tick Update
+      if (randEvent < 0.35) {
+        let tickedTenor = '';
+        setYieldData((prev) => {
+          if (!prev.length) return prev;
+          const randomIdx = Math.floor(Math.random() * prev.length);
+          const target = prev[randomIdx];
+          if (!target) return prev;
+          tickedTenor = target.tenor;
+
+          // Micro-tick: -1.5 bps to +1.5 bps
+          const deltaBps = Math.round((Math.random() - 0.49) * 2.5 * 10) / 10;
+          const newYield = Math.max(0.05, Math.round((target.yield + deltaBps / 100) * 100) / 100);
+          const newChangeBps = Math.round((target.changeBps + deltaBps) * 10) / 10;
+
+          const newSparkline = [...(target.sparkline || [target.yield])];
+          newSparkline.push(newYield);
+          if (newSparkline.length > 8) newSparkline.shift();
+
+          const next = [...prev];
+          next[randomIdx] = {
+            ...target,
+            yield: newYield,
+            changeBps: newChangeBps,
+            dayHigh: Math.max(target.dayHigh, newYield),
+            dayLow: Math.min(target.dayLow, newYield),
+            sparkline: newSparkline,
+          };
+          return next;
+        });
+
+        if (tickedTenor) {
+          setFlashTenors((prev) => {
+            const n = new Set(prev);
+            n.add(tickedTenor);
+            return n;
+          });
+          setTimeout(() => {
+            setFlashTenors((prev) => {
+              const n = new Set(prev);
+              n.delete(tickedTenor);
+              return n;
+            });
+          }, 600);
+        }
+      }
+
+      // 7. Random Orderbook stream event
       if (randEvent < 0.25) {
         const now = new Date();
         const timeStr = `${now.toISOString().substring(11, 19)}.${Math.floor(Math.random() * 900 + 100)}`;
@@ -848,6 +936,15 @@ export default function App() {
             onRemoveAsset={handleRemoveWatchlistAsset}
             onResetAssets={handleResetWatchlistAssets}
             onToggleAlert={handleToggleWatchlistAlert}
+            onBroadcastAlert={handleBroadcastAlert}
+            audioEnabled={audioEnabled}
+          />
+        );
+      case 'yield_curve':
+        return (
+          <YieldCurveWidget
+            yields={yieldData}
+            flashTenors={flashTenors}
             onBroadcastAlert={handleBroadcastAlert}
             audioEnabled={audioEnabled}
           />
