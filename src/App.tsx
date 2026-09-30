@@ -11,7 +11,8 @@ import {
   RsiDivergence,
   WatchlistAsset,
   PushTerminalNotification,
-  TreasuryYield
+  TreasuryYield,
+  TerminalTheme
 } from './types';
 import { BellRing, X, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { 
@@ -264,6 +265,31 @@ export default function App() {
   }, [widgets]);
 
   // Terminal preferences & mode
+  const THEME_STORAGE_KEY = 'mkt_terminal_theme_v1';
+  const [theme, setTheme] = useState<TerminalTheme>(() => {
+    try {
+      const saved = localStorage.getItem(THEME_STORAGE_KEY);
+      if (saved === 'financial-paper' || saved === 'deep-space') {
+        return saved;
+      }
+    } catch (e) {
+      console.warn('Failed to parse theme from localStorage', e);
+    }
+    return 'deep-space';
+  });
+
+  const handleToggleTheme = useCallback(() => {
+    setTheme((prev) => {
+      const next = prev === 'deep-space' ? 'financial-paper' : 'deep-space';
+      try {
+        localStorage.setItem(THEME_STORAGE_KEY, next);
+      } catch (e) {
+        console.warn('Failed to save theme to localStorage', e);
+      }
+      return next;
+    });
+  }, []);
+
   const [adapterMode, setAdapterMode] = useState<DataAdapterMode>('live');
   const [simSpeed, setSimSpeed] = useState<number>(1);
   const [isPaused, setIsPaused] = useState<boolean>(false);
@@ -947,6 +973,7 @@ export default function App() {
             flashTenors={flashTenors}
             onBroadcastAlert={handleBroadcastAlert}
             audioEnabled={audioEnabled}
+            theme={theme}
           />
         );
       case 'aapl_chart':
@@ -956,6 +983,7 @@ export default function App() {
             liveFlash={aaplFlash} 
             onThresholdHit={handleAaplThresholdHit} 
             onDivergenceDetected={handleAaplDivergenceDetected}
+            theme={theme}
           />
         );
       case 'sector_heatmap':
@@ -972,7 +1000,7 @@ export default function App() {
   };
 
   return (
-    <div className={`min-h-screen bg-[#030608] text-slate-200 selection:bg-emerald-500/30 selection:text-emerald-200 terminal-grid ${crtEnabled ? 'crt-effect' : ''}`}>
+    <div className={`min-h-screen ${theme === 'financial-paper' ? 'theme-financial-paper bg-[#f7f5ef] text-[#111827]' : 'bg-[#030608] text-slate-200'} selection:bg-emerald-500/30 selection:text-emerald-200 terminal-grid ${crtEnabled ? 'crt-effect' : ''}`}>
       {/* Terminal Alert Flash Overlay (Triggered when price hits threshold level) */}
       {terminalAlertFlash && (
         <div className="fixed inset-0 pointer-events-none z-50 transition-all duration-300">
@@ -1081,6 +1109,8 @@ export default function App() {
       <TerminalHeader
         adapterMode={adapterMode}
         onToggleAdapterMode={() => setAdapterMode(adapterMode === 'live' ? 'demo' : 'live')}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
         simSpeed={simSpeed}
         onChangeSimSpeed={setSimSpeed}
         isPaused={isPaused}

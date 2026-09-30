@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { CandleData, RsiDivergence } from '../../types';
+import { CandleData, RsiDivergence, TerminalTheme } from '../../types';
 import { 
   BarChart3, 
   LineChart, 
@@ -29,6 +29,7 @@ interface AaplChartWidgetProps {
   liveFlash: boolean;
   onThresholdHit?: (price: number, threshold: number) => void;
   onDivergenceDetected?: (divergence: RsiDivergence) => void;
+  theme?: TerminalTheme;
 }
 
 export interface VapBin {
@@ -46,7 +47,8 @@ export interface VapBin {
   isValueArea: boolean;
 }
 
-export function AaplChartWidget({ candles, liveFlash, onThresholdHit, onDivergenceDetected }: AaplChartWidgetProps) {
+export function AaplChartWidget({ candles, liveFlash, onThresholdHit, onDivergenceDetected, theme = 'deep-space' }: AaplChartWidgetProps) {
+  const isLight = theme === 'financial-paper';
   const [chartType, setChartType] = useState<'candlestick' | 'line' | 'area'>('candlestick');
   const [showSMA20, setShowSMA20] = useState(true);
   const [showSMA50, setShowSMA50] = useState(false);
@@ -1072,12 +1074,12 @@ export function AaplChartWidget({ candles, liveFlash, onThresholdHit, onDivergen
       </div>
 
       {/* SVG Canvas Area */}
-      <div className={`relative w-full bg-[#05090c] rounded border transition-all duration-300 overflow-hidden ${
+      <div className={`relative w-full ${isLight ? 'bg-white' : 'bg-[#05090c]'} rounded border transition-all duration-300 overflow-hidden ${
         widgetFlash
           ? 'border-rose-500 shadow-[0_0_30px_rgba(244,63,94,0.6)] bg-[#100407]'
           : isTriggered
             ? 'border-rose-700 shadow-[0_0_16px_rgba(244,63,94,0.3)]'
-            : 'border-neutral-800/80'
+            : isLight ? 'border-[#dcd5c7]' : 'border-neutral-800/80'
       }`}>
         <svg
           ref={svgRef}
@@ -1111,17 +1113,17 @@ export function AaplChartWidget({ candles, liveFlash, onThresholdHit, onDivergen
           <defs>
             {/* Area gradient for AAPL Price */}
             <linearGradient id="aaplAreaGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
-              <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+              <stop offset="0%" stopColor={isLight ? '#047857' : '#10b981'} stopOpacity={isLight ? 0.25 : 0.35} />
+              <stop offset="100%" stopColor={isLight ? '#047857' : '#10b981'} stopOpacity="0.0" />
             </linearGradient>
             {/* Bollinger Band gradient */}
             <linearGradient id="bollGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#0284c7" stopOpacity="0.1" />
-              <stop offset="100%" stopColor="#0284c7" stopOpacity="0.03" />
+              <stop offset="0%" stopColor="#0284c7" stopOpacity={isLight ? 0.08 : 0.1} />
+              <stop offset="100%" stopColor="#0284c7" stopOpacity={isLight ? 0.02 : 0.03} />
             </linearGradient>
             {/* RSI Area gradient */}
             <linearGradient id="rsiAreaGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.25" />
+              <stop offset="0%" stopColor="#38bdf8" stopOpacity={isLight ? 0.18 : 0.25} />
               <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.01" />
             </linearGradient>
           </defs>
@@ -1137,14 +1139,14 @@ export function AaplChartWidget({ candles, liveFlash, onThresholdHit, onDivergen
                   y1={y}
                   x2={svgWidth - padRight}
                   y2={y}
-                  stroke="#1e293b"
+                  stroke={isLight ? '#e2ded6' : '#1e293b'}
                   strokeWidth="0.8"
                   strokeDasharray="3,3"
                 />
                 <text
                   x={svgWidth - padRight + 6}
                   y={y + 3}
-                  fill="#64748b"
+                  fill={isLight ? '#475569' : '#64748b'}
                   fontSize="9"
                   fontFamily="monospace"
                 >
@@ -1534,13 +1536,13 @@ export function AaplChartWidget({ candles, liveFlash, onThresholdHit, onDivergen
           {chartType === 'area' && (
             <>
               <polygon points={areaPoints.join(' ')} fill="url(#aaplAreaGrad)" />
-              <polyline points={linePoints.join(' ')} fill="none" stroke="#10b981" strokeWidth="2" />
+              <polyline points={linePoints.join(' ')} fill="none" stroke={isLight ? '#047857' : '#10b981'} strokeWidth="2" />
             </>
           )}
 
           {/* Line Chart Mode */}
           {chartType === 'line' && (
-            <polyline points={linePoints.join(' ')} fill="none" stroke="#10b981" strokeWidth="2" />
+            <polyline points={linePoints.join(' ')} fill="none" stroke={isLight ? '#047857' : '#10b981'} strokeWidth="2" />
           )}
 
           {/* Candlestick Chart Mode */}
@@ -1553,7 +1555,7 @@ export function AaplChartWidget({ candles, liveFlash, onThresholdHit, onDivergen
               const yLow = getY(c.low);
 
               const isBull = c.close >= c.open;
-              const color = isBull ? '#10b981' : '#f43f5e';
+              const color = isBull ? (isLight ? '#047857' : '#10b981') : (isLight ? '#b91c1c' : '#f43f5e');
               const bodyTop = Math.min(yOpen, yClose);
               const bodyHeight = Math.max(Math.abs(yClose - yOpen), 1.5);
               const candleWidth = Math.max(stepX * 0.72, 3);

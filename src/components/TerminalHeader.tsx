@@ -11,13 +11,17 @@ import {
   Radio, 
   RotateCcw,
   Check,
-  ChevronDown
+  ChevronDown,
+  Sun,
+  Moon
 } from 'lucide-react';
-import { DataAdapterMode, WidgetConfig } from '../types';
+import { DataAdapterMode, WidgetConfig, TerminalTheme } from '../types';
 
 interface TerminalHeaderProps {
   adapterMode: DataAdapterMode;
   onToggleAdapterMode: () => void;
+  theme: TerminalTheme;
+  onToggleTheme: () => void;
   simSpeed: number;
   onChangeSimSpeed: (speed: number) => void;
   isPaused: boolean;
@@ -39,6 +43,8 @@ interface TerminalHeaderProps {
 export function TerminalHeader({
   adapterMode,
   onToggleAdapterMode,
+  theme,
+  onToggleTheme,
   simSpeed,
   onChangeSimSpeed,
   isPaused,
@@ -154,6 +160,30 @@ export function TerminalHeader({
             title={crtEnabled ? 'CRT Scanlines ON' : 'CRT Scanlines OFF'}
           >
             <Tv className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Global Theme Toggle: Deep Space Dark vs Financial Paper Light */}
+          <button
+            id="btn-theme-toggle"
+            onClick={onToggleTheme}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded border transition-all font-mono text-[11px] ${
+              theme === 'financial-paper'
+                ? 'bg-[#ede7da] border-[#c2bba8] text-[#0f172a] shadow-sm hover:bg-[#e4ddcd]'
+                : 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:text-white hover:border-neutral-700'
+            }`}
+            title={`Toggle Theme (Current: ${theme === 'financial-paper' ? 'Financial Paper Light Mode' : 'Deep Space Dark Mode'})`}
+          >
+            {theme === 'financial-paper' ? (
+              <>
+                <Sun className="w-3.5 h-3.5 text-amber-700" />
+                <span className="font-bold tracking-tight">FINANCIAL PAPER</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="font-semibold text-neutral-300 tracking-tight">DEEP SPACE</span>
+              </>
+            )}
           </button>
         </div>
 

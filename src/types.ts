@@ -1,4 +1,5 @@
 export type DataAdapterMode = 'live' | 'demo';
+export type TerminalTheme = 'deep-space' | 'financial-paper';
 
 export interface MarketIndex {
   symbol: string;

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { TreasuryYield } from '../../types';
+import { TreasuryYield, TerminalTheme } from '../../types';
 import { 
   YIELD_CURVE_SCENARIOS, 
   calculateEstrellaMishkinRecessionProb 
@@ -15,9 +15,9 @@ import {
   RotateCcw, 
   Info, 
   Layers, 
-  ExternalLink,
-  ChevronRight,
-  ShieldAlert
+  ExternalLink, 
+  ChevronRight, 
+  ShieldAlert 
 } from 'lucide-react';
 
 interface YieldCurveWidgetProps {
@@ -25,6 +25,7 @@ interface YieldCurveWidgetProps {
   flashTenors?: Set<string>;
   onBroadcastAlert?: (alert: { level: 'INFO' | 'NOTICE' | 'SPIKE' | 'WARNING'; source: string; text: string }) => void;
   audioEnabled?: boolean;
+  theme?: TerminalTheme;
 }
 
 export function YieldCurveWidget({
@@ -32,7 +33,9 @@ export function YieldCurveWidget({
   flashTenors = new Set(),
   onBroadcastAlert,
   audioEnabled = false,
+  theme = 'deep-space',
 }: YieldCurveWidgetProps) {
+  const isLight = theme === 'financial-paper';
   // Scenario & Simulation state
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>('current-live');
   const [parallelShiftBps, setParallelShiftBps] = useState<number>(0);
@@ -479,31 +482,31 @@ export function YieldCurveWidget({
       </div>
 
       {/* Main Interactive Yield Curve SVG Chart */}
-      <div className="relative bg-black/60 border border-neutral-800 rounded p-2 overflow-hidden">
+      <div className={`relative ${isLight ? 'bg-white border-[#dcd5c7]' : 'bg-black/60 border-neutral-800'} rounded p-2 overflow-hidden`}>
         {/* Chart Legend */}
-        <div className="flex items-center justify-between px-2 pt-1 pb-2 border-b border-neutral-900 text-[10px]">
+        <div className={`flex items-center justify-between px-2 pt-1 pb-2 border-b ${isLight ? 'border-[#ede7da]' : 'border-neutral-900'} text-[10px]`}>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1.5 text-cyan-400 font-bold">
-              <span className="w-3 h-1 bg-cyan-400 rounded-sm shadow-[0_0_8px_#06b6d4]" />
+            <div className={`flex items-center gap-1.5 ${isLight ? 'text-sky-700' : 'text-cyan-400'} font-bold`}>
+              <span className={`w-3 h-1 ${isLight ? 'bg-sky-600' : 'bg-cyan-400'} rounded-sm shadow-sm`} />
               <span>LIVE TREASURY CURVE</span>
             </div>
 
             {show1MonthAgo && (
-              <div className="flex items-center gap-1.5 text-amber-400">
-                <span className="w-3 h-0.5 border-t-2 border-dashed border-amber-400" />
+              <div className={`flex items-center gap-1.5 ${isLight ? 'text-amber-700' : 'text-amber-400'}`}>
+                <span className={`w-3 h-0.5 border-t-2 border-dashed ${isLight ? 'border-amber-600' : 'border-amber-400'}`} />
                 <span>1 MONTH AGO</span>
               </div>
             )}
 
             {show1YearAgo && (
-              <div className="flex items-center gap-1.5 text-indigo-400">
-                <span className="w-3 h-0.5 border-t-2 border-dashed border-indigo-400" />
+              <div className={`flex items-center gap-1.5 ${isLight ? 'text-indigo-700' : 'text-indigo-400'}`}>
+                <span className={`w-3 h-0.5 border-t-2 border-dashed ${isLight ? 'border-indigo-600' : 'border-indigo-400'}`} />
                 <span>1 YEAR AGO</span>
               </div>
             )}
           </div>
 
-          <div className="text-neutral-500 text-[9px]">
+          <div className={`${isLight ? 'text-neutral-500' : 'text-neutral-500'} text-[9px]`}>
             Hover / Click tenor nodes to inspect yields
           </div>
         </div>
@@ -517,13 +520,13 @@ export function YieldCurveWidget({
             <defs>
               {/* Cyan Gradient for Active Curve Area */}
               <linearGradient id="curveGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.25" />
-                <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.0" />
+                <stop offset="0%" stopColor={isLight ? '#0284c7' : '#06b6d4'} stopOpacity={isLight ? 0.15 : 0.25} />
+                <stop offset="100%" stopColor={isLight ? '#0284c7' : '#06b6d4'} stopOpacity="0.0" />
               </linearGradient>
 
               {/* Inversion Warning Gradient Pattern */}
               <pattern id="inversionHatch" width="8" height="8" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
-                <line x1="0" y1="0" x2="0" y2="8" stroke="#f43f5e" strokeWidth="1" strokeOpacity="0.2" />
+                <line x1="0" y1="0" x2="0" y2="8" stroke={isLight ? '#b91c1c' : '#f43f5e'} strokeWidth="1" strokeOpacity={isLight ? 0.35 : 0.2} />
               </pattern>
             </defs>
 
@@ -540,7 +543,7 @@ export function YieldCurveWidget({
                 <text
                   x={(xCoords['2Y'] + xCoords['10Y']) / 2}
                   y={padding.top + 18}
-                  fill="#f43f5e"
+                  fill={isLight ? '#b91c1c' : '#f43f5e'}
                   fontSize="9"
                   fontWeight="bold"
                   textAnchor="middle"
@@ -562,14 +565,14 @@ export function YieldCurveWidget({
                     y1={y}
                     x2={chartWidth - padding.right}
                     y2={y}
-                    stroke="#1f2937"
+                    stroke={isLight ? '#e2ded6' : '#1f2937'}
                     strokeWidth="0.8"
                     strokeDasharray="2,3"
                   />
                   <text
                     x={padding.left - 8}
                     y={y + 3}
-                    fill="#6b7280"
+                    fill={isLight ? '#475569' : '#6b7280'}
                     fontSize="9"
                     textAnchor="end"
                     fontFamily="monospace"
@@ -585,10 +588,10 @@ export function YieldCurveWidget({
               <path
                 d={yearAgoPath}
                 fill="none"
-                stroke="#818cf8"
+                stroke={isLight ? '#4f46e5' : '#818cf8'}
                 strokeWidth="1.5"
                 strokeDasharray="4,4"
-                opacity="0.7"
+                opacity={isLight ? 0.8 : 0.7}
               />
             )}
 
@@ -597,10 +600,10 @@ export function YieldCurveWidget({
               <path
                 d={monthAgoPath}
                 fill="none"
-                stroke="#fbbf24"
+                stroke={isLight ? '#d97706' : '#fbbf24'}
                 strokeWidth="1.5"
                 strokeDasharray="4,4"
-                opacity="0.75"
+                opacity={isLight ? 0.85 : 0.75}
               />
             )}
 
@@ -614,11 +617,11 @@ export function YieldCurveWidget({
             <path
               d={livePath}
               fill="none"
-              stroke="#06b6d4"
+              stroke={isLight ? '#0284c7' : '#06b6d4'}
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="drop-shadow-[0_0_8px_rgba(6,182,212,0.6)]"
+              className={isLight ? 'drop-shadow-sm' : 'drop-shadow-[0_0_8px_rgba(6,182,212,0.6)]'}
             />
 
             {/* Vertical guidelines & Interactive Nodes on each tenor */}
