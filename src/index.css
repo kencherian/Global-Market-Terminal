@@ -1,0 +1,304 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    background-color: #030708;
+    color: #e2e8f0;
+    overflow-x: hidden;
+  }
+}
+
+/* Custom terminal scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #090d10;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* Canvas Terminal Grid background (Default Deep Space Dark) */
+.terminal-grid {
+  background-color: #030608;
+  background-image: 
+    radial-gradient(rgba(34, 197, 94, 0.08) 1px, transparent 1px),
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 24px 24px, 48px 48px, 48px 48px;
+  background-position: 0 0, 0 0, 0 0;
+}
+
+/* Optional CRT Scanlines Effect */
+.crt-effect {
+  position: relative;
+}
+.crt-effect::before {
+  content: " ";
+  display: block;
+  position: fixed;
+  top: 0; left: 0; bottom: 0; right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+  z-index: 9999;
+  background-size: 100% 3px, 6px 100%;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* =========================================================================
+   FINANCIAL PAPER THEME (High-Contrast Financial Times / Wall St Newsprint)
+   ========================================================================= */
+
+.theme-financial-paper {
+  background-color: #f7f5ef !important;
+  color: #111827 !important;
+}
+
+.theme-financial-paper ::-webkit-scrollbar-track {
+  background: #ebe6db;
+}
+.theme-financial-paper ::-webkit-scrollbar-thumb {
+  background: #c5beaf;
+}
+.theme-financial-paper ::-webkit-scrollbar-thumb:hover {
+  background: #a39c8c;
+}
+
+/* Financial Paper Canvas Grid */
+.theme-financial-paper.terminal-grid {
+  background-color: #f7f5ef !important;
+  background-image: 
+    radial-gradient(rgba(15, 23, 42, 0.09) 1px, transparent 1px),
+    linear-gradient(to right, rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.04) 1px, transparent 1px) !important;
+}
+
+/* Financial Paper CRT Effect (Fine press newsprint overlay) */
+.theme-financial-paper.crt-effect::before {
+  background: linear-gradient(rgba(0, 0, 0, 0.04) 50%, rgba(255, 255, 255, 0.04) 50%), linear-gradient(90deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.01), rgba(0, 0, 0, 0.02)) !important;
+  opacity: 0.55 !important;
+}
+
+/* Top Header Bar */
+.theme-financial-paper header {
+  background-color: #fbf9f4 !important;
+  border-bottom-color: #dcd6c8 !important;
+}
+
+/* All Widget Card Shells */
+.theme-financial-paper .bg-\[\#070b0e\],
+.theme-financial-paper .bg-\[\#041209\],
+.theme-financial-paper .bg-\[\#0a0507\],
+.theme-financial-paper .bg-\[\#0c1217\],
+.theme-financial-paper .bg-\[\#05090c\] {
+  background-color: #ffffff !important;
+  border-color: #dcd5c7 !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05), 0 4px 12px rgba(0, 0, 0, 0.02) !important;
+}
+
+/* Widget Titlebars & Focus Bars */
+.theme-financial-paper .bg-\[\#0b1015\],
+.theme-financial-paper .bg-\[\#0b1116\] {
+  background-color: #f2ede2 !important;
+  border-bottom-color: #dcd5c7 !important;
+}
+
+/* Panels, Sub-cards, and Inner Container Strips */
+.theme-financial-paper .bg-neutral-950,
+.theme-financial-paper .bg-neutral-950\/90,
+.theme-financial-paper .bg-neutral-950\/80,
+.theme-financial-paper .bg-neutral-950\/70,
+.theme-financial-paper .bg-neutral-950\/60,
+.theme-financial-paper .bg-neutral-950\/40,
+.theme-financial-paper .bg-neutral-950\/25,
+.theme-financial-paper .bg-black\/60,
+.theme-financial-paper .bg-black\/40 {
+  background-color: #fbf9f4 !important;
+  border-color: #ded7c8 !important;
+}
+
+.theme-financial-paper .bg-neutral-900,
+.theme-financial-paper .bg-neutral-900\/90,
+.theme-financial-paper .bg-neutral-900\/80 {
+  background-color: #f0ebe0 !important;
+  border-color: #ded7c8 !important;
+}
+
+/* Borders */
+.theme-financial-paper .border-neutral-800,
+.theme-financial-paper .border-neutral-800\/90,
+.theme-financial-paper .border-neutral-800\/80,
+.theme-financial-paper .border-neutral-800\/60,
+.theme-financial-paper .border-neutral-800\/40,
+.theme-financial-paper .border-neutral-900,
+.theme-financial-paper .border-emerald-950\/80,
+.theme-financial-paper .divide-neutral-800\/40 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #ded7c8 !important;
+}
+
+/* Text Hierarchy: High-Contrast Ink Typography */
+.theme-financial-paper .text-white,
+.theme-financial-paper .text-neutral-100,
+.theme-financial-paper .text-neutral-200,
+.theme-financial-paper .text-slate-200 {
+  color: #0f172a !important;
+}
+
+.theme-financial-paper .text-neutral-300 {
+  color: #1e293b !important;
+}
+
+.theme-financial-paper .text-neutral-400 {
+  color: #475569 !important;
+}
+
+.theme-financial-paper .text-neutral-500 {
+  color: #64748b !important;
+}
+
+.theme-financial-paper .text-neutral-600 {
+  color: #94a3b8 !important;
+}
+
+/* High-Contrast Financial Gainers (British Racing Green) */
+.theme-financial-paper .text-emerald-400,
+.theme-financial-paper .text-emerald-300 {
+  color: #047857 !important;
+}
+
+.theme-financial-paper .bg-emerald-950,
+.theme-financial-paper .bg-emerald-950\/80,
+.theme-financial-paper .bg-emerald-950\/60,
+.theme-financial-paper .bg-emerald-950\/50,
+.theme-financial-paper .bg-emerald-950\/40,
+.theme-financial-paper .bg-emerald-500\/15,
+.theme-financial-paper .bg-emerald-500\/20,
+.theme-financial-paper .bg-emerald-500\/25 {
+  background-color: #ecfdf5 !important;
+  border-color: #a7f3d0 !important;
+  color: #065f46 !important;
+}
+
+/* High-Contrast Financial Losers (Rich Carmine Red) */
+.theme-financial-paper .text-rose-400,
+.theme-financial-paper .text-rose-300,
+.theme-financial-paper .text-red-400 {
+  color: #b91c1c !important;
+}
+
+.theme-financial-paper .bg-rose-950,
+.theme-financial-paper .bg-rose-950\/80,
+.theme-financial-paper .bg-rose-950\/60,
+.theme-financial-paper .bg-rose-950\/50,
+.theme-financial-paper .bg-rose-950\/40,
+.theme-financial-paper .bg-rose-500\/15,
+.theme-financial-paper .bg-rose-500\/20,
+.theme-financial-paper .bg-rose-500\/25 {
+  background-color: #fef2f2 !important;
+  border-color: #fecaca !important;
+  color: #991b1b !important;
+}
+
+/* Macro / Rates Cyan (Financial Navy Blue) */
+.theme-financial-paper .text-cyan-400,
+.theme-financial-paper .text-cyan-300 {
+  color: #0369a1 !important;
+}
+
+.theme-financial-paper .bg-cyan-950,
+.theme-financial-paper .bg-cyan-950\/80,
+.theme-financial-paper .bg-cyan-950\/50,
+.theme-financial-paper .bg-cyan-950\/40,
+.theme-financial-paper .bg-cyan-950\/25 {
+  background-color: #f0f9ff !important;
+  border-color: #bae6fd !important;
+  color: #0369a1 !important;
+}
+
+/* Amber / Warning Badges */
+.theme-financial-paper .text-amber-400,
+.theme-financial-paper .text-amber-300 {
+  color: #b45309 !important;
+}
+
+.theme-financial-paper .bg-amber-950,
+.theme-financial-paper .bg-amber-950\/80,
+.theme-financial-paper .bg-amber-950\/60,
+.theme-financial-paper .bg-amber-950\/40,
+.theme-financial-paper .bg-amber-500\/15,
+.theme-financial-paper .bg-amber-500\/20,
+.theme-financial-paper .bg-amber-500\/25 {
+  background-color: #fffbeb !important;
+  border-color: #fde68a !important;
+  color: #92400e !important;
+}
+
+/* Indigo / Tech Badges */
+.theme-financial-paper .text-indigo-400,
+.theme-financial-paper .text-indigo-300 {
+  color: #4338ca !important;
+}
+
+.theme-financial-paper .bg-indigo-950,
+.theme-financial-paper .bg-indigo-950\/80,
+.theme-financial-paper .bg-indigo-950\/40 {
+  background-color: #eef2ff !important;
+  border-color: #c7d2fe !important;
+  color: #3730a3 !important;
+}
+
+/* Table Row Hover & Striping */
+.theme-financial-paper tbody tr:hover {
+  background-color: #f5f1e7 !important;
+}
+
+.theme-financial-paper table thead tr {
+  background-color: #ede7da !important;
+  border-bottom-color: #d6cfbf !important;
+}
+
+/* SVG Chart High-Contrast Overrides */
+.theme-financial-paper svg text {
+  fill: #334155;
+}
+
+.theme-financial-paper svg line[stroke="#1f2937"],
+.theme-financial-paper svg line[stroke="#111827"],
+.theme-financial-paper svg line[stroke="#1f293b"],
+.theme-financial-paper svg line[stroke="#374151"] {
+  stroke: #e2ded6 !important;
+}
+
+/* Inputs, Selects, and Modals */
+.theme-financial-paper input,
+.theme-financial-paper select {
+  background-color: #ffffff !important;
+  border-color: #dcd6c8 !important;
+  color: #111827 !important;
+}
+
+.theme-financial-paper input::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Terminal pulsing cursor */
+.terminal-cursor::after {
+  content: '█';
+  display: inline-block;
+  margin-left: 2px;
+  color: #10b981;
+  animation: blink 1s step-start infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
