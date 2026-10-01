@@ -1,0 +1,1428 @@
+import { 
+  MarketIndex, 
+  HeatmapStock, 
+  CandleData, 
+  CommodityMetal, 
+  WorldClockSession, 
+  SessionStatus,
+  TerminalAlert,
+  WatchlistAsset 
+} from '../types';
+
+// Baseline 60 Sessions of AAPL OHLC Data with realistic volatility & trend
+export function generateAAPL60Sessions(): CandleData[] {
+  const sessions: CandleData[] = [];
+  const basePrice = 224.50;
+  let currentPrice = basePrice;
+  const now = new Date();
+  
+  // Generate 60 trading days backwards (skipping weekends roughly)
+  const dates: string[] = [];
+  let d = new Date(now);
+  while (dates.length < 60) {
+    const dayOfWeek = d.getDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      dates.unshift(d.toISOString().split('T')[0]);
+    }
+    d.setDate(d.getDate() - 1);
+  }
+
+  // Known anchor points to create realistic market structure
+  for (let i = 0; i < 60; i++) {
+    const drift = (Math.sin(i / 6) * 1.5) + (Math.cos(i / 12) * 1.2);
+    const noise = (Math.sin(i * 3.7) * 2.8) + (Math.cos(i * 1.9) * 2.1);
+    
+    const open = Math.round((currentPrice + (Math.random() * 0.8 - 0.4)) * 100) / 100;
+    const change = drift + noise * 0.7;
+    const close = Math.round((open + change) * 100) / 100;
+    const high = Math.round((Math.max(open, close) + Math.abs(Math.sin(i * 2.3) * 2.2) + 0.5) * 100) / 100;
+    const low = Math.round((Math.min(open, close) - Math.abs(Math.cos(i * 3.1) * 2.0) - 0.4) * 100) / 100;
+    const volume = Math.round(42000000 + Math.abs(Math.sin(i * 1.4) * 28000000) + Math.random() * 8000000);
+
+    sessions.push({
+      date: dates[i] || `Session -${59 - i}`,
+      sessionIndex: i + 1,
+      open,
+      high,
+      low,
+      close,
+      volume,
+    });
+
+    currentPrice = close;
+  }
+
+  // Calculate technical indicators (SMA20, SMA50, EMA9, Bollinger Bands, RSI)
+  for (let i = 0; i < sessions.length; i++) {
+    // SMA 20 (Price & Volume)
+    if (i >= 19) {
+      const slice = sessions.slice(i - 19, i + 1);
+      const sum = slice.reduce((acc, c) => acc + c.close, 0);
+      const sma = sum / 20;
+      sessions[i].ma20 = Math.round(sma * 100) / 100;
+
+      const sumVol = slice.reduce((acc, c) => acc + c.volume, 0);
+      sessions[i].volMa20 = Math.round(sumVol / 20);
+
+      // Bollinger Bands (2 std deviations of 20 SMA)
+      const variance = slice.reduce((acc, c) => acc + Math.pow(c.close - sma, 2), 0) / 20;
+      const stdDev = Math.sqrt(variance);
+      sessions[i].upperBand = Math.round((sma + stdDev * 2) * 100) / 100;
+      sessions[i].lowerBand = Math.round((sma - stdDev * 2) * 100) / 100;
+    }
+
+    // SMA 50
+    if (i >= 49) {
+      const slice = sessions.slice(i - 49, i + 1);
+      const sum = slice.reduce((acc, c) => acc + c.close, 0);
+      sessions[i].ma50 = Math.round((sum / 50) * 100) / 100;
+    }
+
+    // EMA 9
+    if (i === 0) {
+      sessions[i].ema9 = sessions[i].close;
+    } else {
+      const prevEma = sessions[i - 1].ema9 || sessions[i - 1].close;
+      const k = 2 / (9 + 1);
+      sessions[i].ema9 = Math.round((sessions[i].close * k + prevEma * (1 - k)) * 100) / 100;
+    }
+
+    // RSI 14
+    if (i >= 14) {
+      let gains = 0;
+      let losses = 0;
+      for (let j = i - 13; j <= i; j++) {
+        const diff = sessions[j].close - sessions[j - 1].close;
+        if (diff >= 0) gains += diff;
+        else losses += Math.abs(diff);
+      }
+      const avgGain = gains / 14;
+      const avgLoss = losses / 14;
+      if (avgLoss === 0) {
+        sessions[i].rsi = 100;
+      } else {
+        const rs = avgGain / avgLoss;
+        sessions[i].rsi = Math.round((100 - (100 / (1 + rs))) * 10) / 10;
+      }
+    } else {
+      sessions[i].rsi = 54.2;
+    }
+  }
+
+  return sessions;
+}
+
+export const INITIAL_INDICES: MarketIndex[] = [
+  {
+    symbol: 'SPX',
+    name: 'S&P 500',
+    region: 'Americas',
+    price: 5894.25,
+    change: 32.80,
+    changePercent: 0.56,
+    dayHigh: 5908.12,
+    dayLow: 5854.40,
+    volume: '2.84B',
+    currency: 'USD',
+    lastUpdated: '16:00:02 EDT',
+    sparkline: [5860, 5854, 5872, 5868, 5885, 5879, 5894],
+  },
+  {
+    symbol: 'NDX',
+    name: 'NASDAQ 100',
+    region: 'Americas',
+    price: 20612.40,
+    change: 184.60,
+    changePercent: 0.90,
+    dayHigh: 20680.10,
+    dayLow: 20450.30,
+    volume: '4.12B',
+    currency: 'USD',
+    lastUpdated: '16:00:00 EDT',
+    sparkline: [20450, 20480, 20520, 20510, 20590, 20570, 20612],
+  },
+  {
+    symbol: 'DJI',
+    name: 'Dow Jones 30',
+    region: 'Americas',
+    price: 43245.80,
+    change: -74.20,
+    changePercent: -0.17,
+    dayHigh: 43380.00,
+    dayLow: 43190.50,
+    volume: '345M',
+    currency: 'USD',
+    lastUpdated: '16:00:00 EDT',
+    sparkline: [43320, 43350, 43290, 43310, 43210, 43260, 43245],
+  },
+  {
+    symbol: 'FTSE',
+    name: 'FTSE 100',
+    region: 'Europe',
+    price: 8295.10,
+    change: 28.45,
+    changePercent: 0.34,
+    dayHigh: 8312.20,
+    dayLow: 8264.00,
+    volume: '780M',
+    currency: 'GBP',
+    lastUpdated: '16:35:00 BST',
+    sparkline: [8265, 8274, 8290, 8282, 8305, 8290, 8295],
+  },
+  {
+    symbol: 'DAX',
+    name: 'DAX 40',
+    region: 'Europe',
+    price: 19488.60,
+    change: 112.30,
+    changePercent: 0.58,
+    dayHigh: 19524.00,
+    dayLow: 19390.10,
+    volume: '640M',
+    currency: 'EUR',
+    lastUpdated: '17:30:00 CEST',
+    sparkline: [19390, 19410, 19445, 19430, 19495, 19470, 19488],
+  },
+  {
+    symbol: 'N225',
+    name: 'Nikkei 225',
+    region: 'Asia-Pacific',
+    price: 39180.30,
+    change: -210.50,
+    changePercent: -0.53,
+    dayHigh: 39420.00,
+    dayLow: 39050.80,
+    volume: '1.2B',
+    currency: 'JPY',
+    lastUpdated: '15:00:00 JST',
+    sparkline: [39390, 39320, 39210, 39280, 39100, 39140, 39180],
+  },
+  {
+    symbol: 'HSI',
+    name: 'Hang Seng',
+    region: 'Asia-Pacific',
+    price: 20724.90,
+    change: 362.15,
+    changePercent: 1.78,
+    dayHigh: 20850.00,
+    dayLow: 20410.00,
+    volume: '2.1B',
+    currency: 'HKD',
+    lastUpdated: '16:00:00 HKT',
+    sparkline: [20420, 20510, 20640, 20590, 20780, 20700, 20724],
+  },
+  {
+    symbol: 'SHCOMP',
+    name: 'Shanghai Composite',
+    region: 'Asia-Pacific',
+    price: 3345.20,
+    change: 22.80,
+    changePercent: 0.69,
+    dayHigh: 3360.50,
+    dayLow: 3318.00,
+    volume: '4.8B',
+    currency: 'CNY',
+    lastUpdated: '15:00:00 CST',
+    sparkline: [3320, 3328, 3340, 3335, 3352, 3341, 3345],
+  },
+  {
+    symbol: 'NIFTY',
+    name: 'Nifty 50',
+    region: 'Asia-Pacific',
+    price: 25114.80,
+    change: 89.20,
+    changePercent: 0.36,
+    dayHigh: 25180.00,
+    dayLow: 24995.00,
+    volume: '490M',
+    currency: 'INR',
+    lastUpdated: '15:30:00 IST',
+    sparkline: [25020, 25050, 25090, 25070, 25140, 25100, 25114],
+  },
+];
+
+export const INITIAL_HEATMAP_STOCKS: HeatmapStock[] = [
+  // AI & Semiconductors
+  { ticker: 'NVDA', company: 'NVIDIA Corp', sector: 'AI & Semiconductors', marketCap: 3420, price: 139.80, changePercent: 3.42, volume: '62.4M', peRatio: 58.4, high52w: 144.42, low52w: 45.10 },
+  { ticker: 'MSFT', company: 'Microsoft Corp', sector: 'AI & Semiconductors', marketCap: 3180, price: 428.15, changePercent: 1.15, volume: '21.8M', peRatio: 35.2, high52w: 468.35, low52w: 309.45 },
+  { ticker: 'GOOGL', company: 'Alphabet Inc', sector: 'AI & Semiconductors', marketCap: 2040, price: 165.30, changePercent: 1.64, volume: '24.1M', peRatio: 23.8, high52w: 191.75, low52w: 120.21 },
+  { ticker: 'TSM', company: 'Taiwan Semi ADR', sector: 'AI & Semiconductors', marketCap: 990, price: 192.40, changePercent: 2.85, volume: '18.9M', peRatio: 31.4, high52w: 205.84, low52w: 84.50 },
+  { ticker: 'AVGO', company: 'Broadcom Inc', sector: 'AI & Semiconductors', marketCap: 830, price: 178.60, changePercent: 2.10, volume: '14.2M', peRatio: 42.1, high52w: 185.16, low52w: 80.80 },
+  { ticker: 'AMD', company: 'Adv Micro Devices', sector: 'AI & Semiconductors', marketCap: 252, price: 156.25, changePercent: -1.24, volume: '48.5M', peRatio: 112.0, high52w: 227.30, low52w: 94.04 },
+  { ticker: 'ASML', company: 'ASML Holding ADR', sector: 'AI & Semiconductors', marketCap: 290, price: 712.50, changePercent: -2.35, volume: '4.8M', peRatio: 38.6, high52w: 1110.09, low52w: 654.10 },
+  { ticker: 'PLTR', company: 'Palantir Tech', sector: 'AI & Semiconductors', marketCap: 98, price: 43.80, changePercent: 4.88, volume: '72.1M', peRatio: 118.5, high52w: 44.90, low52w: 14.48 },
+  
+  // Energy
+  { ticker: 'XOM', company: 'Exxon Mobil', sector: 'Energy', marketCap: 492, price: 123.40, changePercent: 0.85, volume: '14.9M', peRatio: 14.2, high52w: 126.34, low52w: 95.77 },
+  { ticker: 'CVX', company: 'Chevron Corp', sector: 'Energy', marketCap: 278, price: 152.10, changePercent: 0.42, volume: '8.4M', peRatio: 13.8, high52w: 167.11, low52w: 139.60 },
+  { ticker: 'SHEL', company: 'Shell plc ADR', sector: 'Energy', marketCap: 215, price: 68.30, changePercent: -0.65, volume: '6.2M', peRatio: 11.2, high52w: 74.33, low52w: 60.10 },
+  { ticker: 'COP', company: 'ConocoPhillips', sector: 'Energy', marketCap: 126, price: 108.90, changePercent: 0.25, volume: '5.1M', peRatio: 12.6, high52w: 134.50, low52w: 104.20 },
+  { ticker: 'SLB', company: 'Schlumberger Ltd', sector: 'Energy', marketCap: 62, price: 43.50, changePercent: -1.45, volume: '9.8M', peRatio: 13.9, high52w: 61.40, low52w: 41.20 },
+  { ticker: 'EOG', company: 'EOG Resources', sector: 'Energy', marketCap: 73, price: 128.40, changePercent: 1.10, volume: '3.4M', peRatio: 10.4, high52w: 139.80, low52w: 112.50 },
+  { ticker: 'TTE', company: 'TotalEnergies SE', sector: 'Energy', marketCap: 148, price: 63.80, changePercent: -0.80, volume: '3.9M', peRatio: 8.1, high52w: 73.20, low52w: 59.80 },
+
+  // Financials
+  { ticker: 'JPM', company: 'JPMorgan Chase', sector: 'Financials', marketCap: 628, price: 221.75, changePercent: 1.45, volume: '11.2M', peRatio: 12.8, high52w: 225.48, low52w: 138.80 },
+  { ticker: 'BAC', company: 'Bank of America', sector: 'Financials', marketCap: 334, price: 42.60, changePercent: 0.90, volume: '38.5M', peRatio: 14.1, high52w: 44.44, low52w: 24.96 },
+  { ticker: 'WFC', company: 'Wells Fargo & Co', sector: 'Financials', marketCap: 224, price: 63.85, changePercent: 2.10, volume: '19.4M', peRatio: 12.9, high52w: 64.92, low52w: 38.60 },
+  { ticker: 'GS', company: 'Goldman Sachs', sector: 'Financials', marketCap: 168, price: 512.40, changePercent: 1.80, volume: '2.8M', peRatio: 16.5, high52w: 524.30, low52w: 289.36 },
+  { ticker: 'MS', company: 'Morgan Stanley', sector: 'Financials', marketCap: 188, price: 116.20, changePercent: 3.20, volume: '14.1M', peRatio: 17.8, high52w: 118.45, low52w: 69.42 },
+  { ticker: 'V', company: 'Visa Inc', sector: 'Financials', marketCap: 560, price: 282.40, changePercent: 0.15, volume: '6.4M', peRatio: 29.4, high52w: 290.96, low52w: 227.68 },
+  { ticker: 'MA', company: 'Mastercard Inc', sector: 'Financials', marketCap: 472, price: 508.90, changePercent: 0.40, volume: '2.9M', peRatio: 36.1, high52w: 518.25, low52w: 365.10 },
+  { ticker: 'BLK', company: 'BlackRock Inc', sector: 'Financials', marketCap: 146, price: 978.50, changePercent: 1.25, volume: '750K', peRatio: 24.2, high52w: 1012.00, low52w: 602.00 },
+];
+
+export const INITIAL_METALS: CommodityMetal[] = [
+  {
+    symbol: 'XAU/USD',
+    name: 'Gold Spot',
+    category: 'Metals',
+    unit: 'oz',
+    bid: 2658.40,
+    ask: 2658.90,
+    last: 2658.65,
+    change: 14.30,
+    changePercent: 0.54,
+    high24h: 2665.20,
+    low24h: 2641.80,
+    sparkline: [2642, 2648, 2651, 2649, 2663, 2655, 2658],
+  },
+  {
+    symbol: 'XAG/USD',
+    name: 'Silver Spot',
+    category: 'Metals',
+    unit: 'oz',
+    bid: 31.42,
+    ask: 31.46,
+    last: 31.44,
+    change: 0.48,
+    changePercent: 1.55,
+    high24h: 31.85,
+    low24h: 30.82,
+    sparkline: [30.85, 31.02, 31.18, 31.10, 31.62, 31.35, 31.44],
+  },
+  {
+    symbol: 'XPT/USD',
+    name: 'Platinum Spot',
+    category: 'Metals',
+    unit: 'oz',
+    bid: 994.20,
+    ask: 996.80,
+    last: 995.50,
+    change: -4.80,
+    changePercent: -0.48,
+    high24h: 1008.50,
+    low24h: 989.10,
+    sparkline: [1005, 1002, 998, 992, 990, 997, 995],
+  },
+  {
+    symbol: 'XPD/USD',
+    name: 'Palladium Spot',
+    category: 'Metals',
+    unit: 'oz',
+    bid: 1018.50,
+    ask: 1024.00,
+    last: 1021.25,
+    change: 12.75,
+    changePercent: 1.26,
+    high24h: 1035.00,
+    low24h: 998.00,
+    sparkline: [1001, 1008, 1014, 1012, 1028, 1019, 1021],
+  },
+  {
+    symbol: 'WTI/USD',
+    name: 'Crude Oil (WTI)',
+    category: 'Energy',
+    unit: 'bbl',
+    bid: 70.88,
+    ask: 70.92,
+    last: 70.90,
+    change: -0.84,
+    changePercent: -1.17,
+    high24h: 72.15,
+    low24h: 70.40,
+    sparkline: [71.9, 71.8, 71.2, 71.5, 70.6, 70.8, 70.9],
+  },
+  {
+    symbol: 'BRENT/USD',
+    name: 'Brent Crude',
+    category: 'Energy',
+    unit: 'bbl',
+    bid: 74.46,
+    ask: 74.50,
+    last: 74.48,
+    change: -0.72,
+    changePercent: -0.96,
+    high24h: 75.80,
+    low24h: 73.95,
+    sparkline: [75.4, 75.3, 74.8, 75.1, 74.2, 74.3, 74.48],
+  },
+  {
+    symbol: 'HG/USD',
+    name: 'Copper Futures',
+    category: 'Metals',
+    unit: 'lb',
+    bid: 4.382,
+    ask: 4.388,
+    last: 4.385,
+    change: 0.045,
+    changePercent: 1.04,
+    high24h: 4.415,
+    low24h: 4.320,
+    sparkline: [4.33, 4.35, 4.36, 4.34, 4.40, 4.37, 4.385],
+  },
+];
+
+export function calculateWorldSessions(now: Date = new Date()): WorldClockSession[] {
+  // Current UTC hour and minute
+  const utcHours = now.getUTCHours() + now.getUTCMinutes() / 60;
+  const dayOfWeek = now.getUTCDay(); // 0 is Sun, 6 is Sat
+
+  const isWeekend = dayOfWeek === 0 || (dayOfWeek === 6 && utcHours > 0) || (dayOfWeek === 5 && utcHours > 22);
+
+  const rawSessions = [
+    {
+      id: 'ny',
+      city: 'New York',
+      exchange: 'NYSE / NASDAQ',
+      timezone: 'America/New_York',
+      utcOffset: -4,
+      openUtcHour: 13.5, // 9:30 AM EDT = 13:30 UTC
+      closeUtcHour: 20.0, // 4:00 PM EDT = 20:00 UTC
+      flag: '🇺🇸',
+      currency: 'USD',
+    },
+    {
+      id: 'lon',
+      city: 'London',
+      exchange: 'London Stock Exchange',
+      timezone: 'Europe/London',
+      utcOffset: 1,
+      openUtcHour: 7.0, // 8:00 AM BST = 7:00 UTC
+      closeUtcHour: 15.5, // 4:30 PM BST = 15:30 UTC
+      flag: '🇬🇧',
+      currency: 'GBP',
+    },
+    {
+      id: 'fra',
+      city: 'Frankfurt',
+      exchange: 'Deutsche Börse XETRA',
+      timezone: 'Europe/Berlin',
+      utcOffset: 2,
+      openUtcHour: 7.0, // 9:00 AM CEST = 7:00 UTC
+      closeUtcHour: 15.5, // 5:30 PM CEST = 15:30 UTC
+      flag: '🇩🇪',
+      currency: 'EUR',
+    },
+    {
+      id: 'tyo',
+      city: 'Tokyo',
+      exchange: 'Tokyo Stock Exchange',
+      timezone: 'Asia/Tokyo',
+      utcOffset: 9,
+      openUtcHour: 0.0, // 9:00 AM JST = 0:00 UTC
+      closeUtcHour: 6.0, // 3:00 PM JST = 6:00 UTC
+      flag: '🇯🇵',
+      currency: 'JPY',
+    },
+    {
+      id: 'hkg',
+      city: 'Hong Kong',
+      exchange: 'HKEX',
+      timezone: 'Asia/Hong_Kong',
+      utcOffset: 8,
+      openUtcHour: 1.5, // 9:30 AM HKT = 1:30 UTC
+      closeUtcHour: 8.0, // 4:00 PM HKT = 8:00 UTC
+      flag: '🇭🇰',
+      currency: 'HKD',
+    },
+    {
+      id: 'syd',
+      city: 'Sydney',
+      exchange: 'Australian Sec. Exchange',
+      timezone: 'Australia/Sydney',
+      utcOffset: 10,
+      openUtcHour: 23.0, // 10:00 AM AEST = 0:00 UTC (or prev day 23:00 UTC)
+      closeUtcHour: 5.0, // 4:00 PM AEST = 6:00 UTC
+      flag: '🇦🇺',
+      currency: 'AUD',
+    },
+  ];
+
+  return rawSessions.map((s) => {
+    let status: SessionStatus = 'CLOSED';
+    let hoursUntilEvent = '';
+
+    // Calculate local time string
+    const localTimeStr = new Intl.DateTimeFormat('en-US', {
+      timeZone: s.timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(now);
+
+    if (isWeekend) {
+      status = 'CLOSED';
+      hoursUntilEvent = 'Weekend Closed';
+    } else {
+      // Check session active status
+      let inSession = false;
+      if (s.openUtcHour < s.closeUtcHour) {
+        inSession = utcHours >= s.openUtcHour && utcHours < s.closeUtcHour;
+      } else {
+        // Crosses midnight (e.g. Sydney)
+        inSession = utcHours >= s.openUtcHour || utcHours < s.closeUtcHour;
+      }
+
+      if (inSession) {
+        status = 'OPEN';
+        let diff = s.closeUtcHour - utcHours;
+        if (diff < 0) diff += 24;
+        const h = Math.floor(diff);
+        const m = Math.floor((diff - h) * 60);
+        hoursUntilEvent = `Closes in ${h}h ${m}m`;
+      } else {
+        // Check Pre-market (1.5 hours before open)
+        let hoursToOpen = s.openUtcHour - utcHours;
+        if (hoursToOpen < 0) hoursToOpen += 24;
+
+        if (hoursToOpen <= 1.5 && hoursToOpen > 0) {
+          status = 'PRE-MARKET';
+          const m = Math.floor(hoursToOpen * 60);
+          hoursUntilEvent = `Opens in ${m}m`;
+        } else {
+          status = 'CLOSED';
+          const h = Math.floor(hoursToOpen);
+          const m = Math.floor((hoursToOpen - h) * 60);
+          hoursUntilEvent = `Opens in ${h}h ${m}m`;
+        }
+      }
+    }
+
+    return {
+      ...s,
+      status,
+      localTime: localTimeStr,
+      hoursUntilEvent,
+    };
+  });
+}
+
+// Initial User Watchlist Assets
+export const INITIAL_WATCHLIST_ASSETS: WatchlistAsset[] = [
+  {
+    symbol: 'NVDA',
+    name: 'NVIDIA Corporation',
+    category: 'Equities',
+    price: 139.80,
+    change: 4.62,
+    changePercent: 3.42,
+    dayHigh: 141.60,
+    dayLow: 135.20,
+    volume: '62.4M',
+    sparkline: [134.5, 136.2, 135.0, 137.8, 138.5, 137.0, 139.80],
+    currency: 'USD',
+    targetPrice: 145.00,
+    notes: 'Enterprise AI demand and B200 accelerator volume ramp',
+    alertEnabled: true,
+  },
+  {
+    symbol: 'TSLA',
+    name: 'Tesla Inc',
+    category: 'Equities',
+    price: 260.40,
+    change: 12.04,
+    changePercent: 4.85,
+    dayHigh: 263.50,
+    dayLow: 248.10,
+    volume: '54.2M',
+    sparkline: [248.0, 251.2, 249.5, 255.0, 253.8, 258.1, 260.40],
+    currency: 'USD',
+    targetPrice: 275.00,
+    notes: 'Robotaxi deployment & FSD software milestone approvals',
+    alertEnabled: false,
+  },
+  {
+    symbol: 'PLTR',
+    name: 'Palantir Technologies Inc',
+    category: 'Equities',
+    price: 43.80,
+    change: 2.04,
+    changePercent: 4.88,
+    dayHigh: 44.50,
+    dayLow: 41.50,
+    volume: '72.1M',
+    sparkline: [40.2, 41.5, 41.0, 42.4, 43.1, 42.8, 43.80],
+    currency: 'USD',
+    targetPrice: 50.00,
+    notes: 'AIP platform customer conversions and S&P 500 inclusion inflows',
+    alertEnabled: false,
+  },
+  {
+    symbol: 'AAPL',
+    name: 'Apple Inc',
+    category: 'Equities',
+    price: 232.15,
+    change: 1.50,
+    changePercent: 0.65,
+    dayHigh: 233.80,
+    dayLow: 230.10,
+    volume: '38.6M',
+    sparkline: [229.5, 230.8, 231.2, 230.5, 231.8, 231.5, 232.15],
+    currency: 'USD',
+    targetPrice: 240.00,
+    notes: 'Apple Intelligence rollout & silicon photonics packaging',
+    alertEnabled: false,
+  },
+  {
+    symbol: 'BTC-USD',
+    name: 'Bitcoin / USD',
+    category: 'Crypto',
+    price: 64820.00,
+    change: 1480.00,
+    changePercent: 2.34,
+    dayHigh: 65400.00,
+    dayLow: 63200.00,
+    volume: '$28.4B',
+    sparkline: [63200, 63800, 63400, 64100, 64500, 64200, 64820],
+    currency: 'USD',
+    targetPrice: 68000.00,
+    notes: 'Institutional ETF accumulation and global liquidity easing',
+    alertEnabled: true,
+  },
+  {
+    symbol: 'QQQ',
+    name: 'Invesco QQQ Trust ETF',
+    category: 'ETFs',
+    price: 492.30,
+    change: 5.45,
+    changePercent: 1.12,
+    dayHigh: 494.50,
+    dayLow: 487.50,
+    volume: '31.8M',
+    sparkline: [486.0, 488.2, 487.0, 490.5, 491.0, 489.5, 492.30],
+    currency: 'USD',
+    targetPrice: 505.00,
+    notes: 'Tech benchmark tracking Nasdaq-100 mega-caps',
+    alertEnabled: false,
+  },
+  {
+    symbol: 'XOM',
+    name: 'Exxon Mobil Corp',
+    category: 'Equities',
+    price: 123.40,
+    change: 1.04,
+    changePercent: 0.85,
+    dayHigh: 124.50,
+    dayLow: 121.80,
+    volume: '14.9M',
+    sparkline: [121.5, 122.0, 121.8, 122.9, 123.2, 122.7, 123.40],
+    currency: 'USD',
+    targetPrice: 130.00,
+    notes: 'Permian basin production and downstream refining margins',
+    alertEnabled: false,
+  },
+  {
+    symbol: 'EUR/USD',
+    name: 'Euro / US Dollar',
+    category: 'Forex',
+    price: 1.0842,
+    change: -0.0020,
+    changePercent: -0.18,
+    dayHigh: 1.0875,
+    dayLow: 1.0820,
+    volume: '$120B',
+    sparkline: [1.0870, 1.0862, 1.0855, 1.0860, 1.0840, 1.0848, 1.0842],
+    currency: 'USD',
+    targetPrice: 1.0950,
+    notes: 'ECB rate cut trajectory relative to FOMC terminal guidance',
+    alertEnabled: false,
+  },
+];
+
+// Rich Catalog of searchable market assets for 1-click addition to watchlist
+export const MARKET_CATALOG_ASSETS: WatchlistAsset[] = [
+  ...INITIAL_WATCHLIST_ASSETS,
+  {
+    symbol: 'MSFT',
+    name: 'Microsoft Corporation',
+    category: 'Equities',
+    price: 428.15,
+    change: 4.85,
+    changePercent: 1.15,
+    dayHigh: 431.20,
+    dayLow: 424.50,
+    volume: '21.8M',
+    sparkline: [422.0, 424.5, 423.0, 426.8, 427.5, 426.0, 428.15],
+    currency: 'USD',
+  },
+  {
+    symbol: 'GOOGL',
+    name: 'Alphabet Inc',
+    category: 'Equities',
+    price: 165.30,
+    change: 2.67,
+    changePercent: 1.64,
+    dayHigh: 167.10,
+    dayLow: 163.20,
+    volume: '24.1M',
+    sparkline: [162.0, 163.5, 162.8, 164.2, 165.0, 164.1, 165.30],
+    currency: 'USD',
+  },
+  {
+    symbol: 'AMZN',
+    name: 'Amazon.com Inc',
+    category: 'Equities',
+    price: 188.40,
+    change: 2.30,
+    changePercent: 1.24,
+    dayHigh: 190.20,
+    dayLow: 186.50,
+    volume: '34.2M',
+    sparkline: [185.0, 186.5, 185.8, 187.2, 188.0, 187.1, 188.40],
+    currency: 'USD',
+  },
+  {
+    symbol: 'META',
+    name: 'Meta Platforms Inc',
+    category: 'Equities',
+    price: 578.90,
+    change: 8.40,
+    changePercent: 1.47,
+    dayHigh: 582.40,
+    dayLow: 572.10,
+    volume: '16.5M',
+    sparkline: [568.0, 572.5, 570.0, 575.2, 577.0, 574.8, 578.90],
+    currency: 'USD',
+  },
+  {
+    symbol: 'AMD',
+    name: 'Advanced Micro Devices',
+    category: 'Equities',
+    price: 156.25,
+    change: -1.96,
+    changePercent: -1.24,
+    dayHigh: 159.80,
+    dayLow: 154.60,
+    volume: '48.5M',
+    sparkline: [160.0, 159.2, 158.0, 157.4, 156.8, 157.2, 156.25],
+    currency: 'USD',
+  },
+  {
+    symbol: 'TSM',
+    name: 'Taiwan Semiconductor ADR',
+    category: 'Equities',
+    price: 192.40,
+    change: 5.33,
+    changePercent: 2.85,
+    dayHigh: 194.80,
+    dayLow: 188.20,
+    volume: '18.9M',
+    sparkline: [186.0, 188.5, 187.2, 190.4, 191.2, 190.5, 192.40],
+    currency: 'USD',
+  },
+  {
+    symbol: 'ARM',
+    name: 'Arm Holdings plc ADR',
+    category: 'Equities',
+    price: 142.80,
+    change: 5.80,
+    changePercent: 4.23,
+    dayHigh: 145.20,
+    dayLow: 137.90,
+    volume: '15.6M',
+    sparkline: [136.0, 138.5, 137.0, 140.2, 141.8, 140.5, 142.80],
+    currency: 'USD',
+  },
+  {
+    symbol: 'SMCI',
+    name: 'Super Micro Computer',
+    category: 'Equities',
+    price: 45.20,
+    change: 2.80,
+    changePercent: 6.60,
+    dayHigh: 47.10,
+    dayLow: 42.50,
+    volume: '38.4M',
+    sparkline: [41.0, 42.8, 42.0, 44.1, 44.8, 43.5, 45.20],
+    currency: 'USD',
+  },
+  {
+    symbol: 'JPM',
+    name: 'JPMorgan Chase & Co',
+    category: 'Equities',
+    price: 221.75,
+    change: 3.17,
+    changePercent: 1.45,
+    dayHigh: 223.50,
+    dayLow: 219.20,
+    volume: '11.2M',
+    sparkline: [218.0, 219.5, 219.0, 220.8, 221.5, 220.7, 221.75],
+    currency: 'USD',
+  },
+  {
+    symbol: 'GS',
+    name: 'Goldman Sachs Group',
+    category: 'Equities',
+    price: 512.40,
+    change: 9.05,
+    changePercent: 1.80,
+    dayHigh: 516.20,
+    dayLow: 506.00,
+    volume: '2.8M',
+    sparkline: [502.0, 506.5, 505.0, 509.2, 511.0, 509.8, 512.40],
+    currency: 'USD',
+  },
+  {
+    symbol: 'SPY',
+    name: 'SPDR S&P 500 ETF Trust',
+    category: 'ETFs',
+    price: 588.60,
+    change: 3.25,
+    changePercent: 0.56,
+    dayHigh: 590.20,
+    dayLow: 585.10,
+    volume: '44.8M',
+    sparkline: [584.0, 586.2, 585.5, 587.8, 588.5, 587.2, 588.60],
+    currency: 'USD',
+  },
+  {
+    symbol: 'SMH',
+    name: 'VanEck Semiconductor ETF',
+    category: 'ETFs',
+    price: 264.80,
+    change: 6.20,
+    changePercent: 2.40,
+    dayHigh: 267.50,
+    dayLow: 259.20,
+    volume: '8.4M',
+    sparkline: [257.0, 260.5, 259.0, 262.8, 264.0, 262.5, 264.80],
+    currency: 'USD',
+  },
+  {
+    symbol: 'TLT',
+    name: 'iShares 20+ Year Treasury Bond',
+    category: 'ETFs',
+    price: 94.20,
+    change: -0.45,
+    changePercent: -0.48,
+    dayHigh: 95.10,
+    dayLow: 93.85,
+    volume: '28.1M',
+    sparkline: [95.2, 94.8, 94.9, 94.5, 94.4, 94.6, 94.20],
+    currency: 'USD',
+  },
+  {
+    symbol: 'GLD',
+    name: 'SPDR Gold Shares ETF',
+    category: 'ETFs',
+    price: 245.80,
+    change: 1.30,
+    changePercent: 0.53,
+    dayHigh: 246.90,
+    dayLow: 244.20,
+    volume: '7.8M',
+    sparkline: [243.5, 244.5, 244.0, 245.2, 245.8, 245.1, 245.80],
+    currency: 'USD',
+  },
+  {
+    symbol: 'ETH-USD',
+    name: 'Ethereum / USD',
+    category: 'Crypto',
+    price: 2645.00,
+    change: 58.00,
+    changePercent: 2.24,
+    dayHigh: 2680.00,
+    dayLow: 2580.00,
+    volume: '$14.2B',
+    sparkline: [2570, 2610, 2590, 2630, 2645, 2630, 2645],
+    currency: 'USD',
+  },
+  {
+    symbol: 'SOL-USD',
+    name: 'Solana / USD',
+    category: 'Crypto',
+    price: 158.40,
+    change: 6.80,
+    changePercent: 4.49,
+    dayHigh: 161.20,
+    dayLow: 151.00,
+    volume: '$4.1B',
+    sparkline: [149.0, 153.5, 151.8, 156.2, 157.5, 155.8, 158.40],
+    currency: 'USD',
+  },
+  {
+    symbol: 'COIN',
+    name: 'Coinbase Global Inc',
+    category: 'Equities',
+    price: 215.60,
+    change: 8.40,
+    changePercent: 4.05,
+    dayHigh: 219.50,
+    dayLow: 206.80,
+    volume: '11.8M',
+    sparkline: [204.0, 209.5, 207.2, 212.8, 214.5, 212.0, 215.60],
+    currency: 'USD',
+  },
+  {
+    symbol: 'GBP/USD',
+    name: 'British Pound / US Dollar',
+    category: 'Forex',
+    price: 1.3125,
+    change: -0.0018,
+    changePercent: -0.14,
+    dayHigh: 1.3160,
+    dayLow: 1.3105,
+    volume: '$85B',
+    sparkline: [1.3150, 1.3142, 1.3135, 1.3140, 1.3120, 1.3130, 1.3125],
+    currency: 'USD',
+  },
+  {
+    symbol: 'USD/JPY',
+    name: 'US Dollar / Japanese Yen',
+    category: 'Forex',
+    price: 143.85,
+    change: 0.65,
+    changePercent: 0.45,
+    dayHigh: 144.40,
+    dayLow: 143.10,
+    volume: '$95B',
+    sparkline: [142.8, 143.2, 143.0, 143.6, 144.0, 143.5, 143.85],
+    currency: 'JPY',
+  },
+  {
+    symbol: 'WTI',
+    name: 'Light Sweet Crude Oil',
+    category: 'Commodities',
+    price: 74.80,
+    change: 0.95,
+    changePercent: 1.29,
+    dayHigh: 75.60,
+    dayLow: 73.50,
+    volume: '420K bbl',
+    sparkline: [73.2, 74.0, 73.8, 74.5, 74.8, 74.4, 74.80],
+    currency: 'USD',
+  },
+];
+
+export const WATCHLIST_PRESETS: { id: string; name: string; tag: string; symbols: string[] }[] = [
+  {
+    id: 'ai-semis',
+    name: 'AI & Semiconductors',
+    tag: 'CHIPS',
+    symbols: ['NVDA', 'TSM', 'AVGO', 'ARM', 'SMCI', 'PLTR', 'AMD', 'SMH'],
+  },
+  {
+    id: 'mega-tech',
+    name: 'Mega-Cap Titans',
+    tag: 'MAG-7',
+    symbols: ['NVDA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'TSLA', 'QQQ'],
+  },
+  {
+    id: 'crypto-fx',
+    name: 'Digital Assets & FX',
+    tag: 'MACRO',
+    symbols: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'COIN', 'EUR/USD', 'USD/JPY', 'XAU/USD'],
+  },
+  {
+    id: 'dividend-energy',
+    name: 'Energy & Financials',
+    tag: 'VALUE',
+    symbols: ['XOM', 'JPM', 'GS', 'WTI', 'GLD', 'SPY', 'TLT'],
+  },
+];
+
+import { TreasuryYield } from '../types';
+
+export const INITIAL_TREASURY_YIELDS: TreasuryYield[] = [
+  {
+    tenor: '1M',
+    name: '1-Month T-Bill',
+    years: 1 / 12,
+    yield: 4.75,
+    changeBps: -1.2,
+    oneMonthAgo: 5.10,
+    oneYearAgo: 5.45,
+    dayLow: 4.74,
+    dayHigh: 4.78,
+    sparkline: [4.80, 4.78, 4.77, 4.76, 4.75],
+    coupon: 4.75,
+  },
+  {
+    tenor: '3M',
+    name: '3-Month Benchmark Bill',
+    years: 0.25,
+    yield: 4.62,
+    changeBps: -2.0,
+    oneMonthAgo: 4.95,
+    oneYearAgo: 5.42,
+    dayLow: 4.60,
+    dayHigh: 4.65,
+    sparkline: [4.68, 4.66, 4.64, 4.63, 4.62],
+    coupon: 4.62,
+  },
+  {
+    tenor: '6M',
+    name: '6-Month T-Bill',
+    years: 0.5,
+    yield: 4.45,
+    changeBps: -1.8,
+    oneMonthAgo: 4.78,
+    oneYearAgo: 5.35,
+    dayLow: 4.43,
+    dayHigh: 4.48,
+    sparkline: [4.50, 4.48, 4.46, 4.45, 4.45],
+    coupon: 4.45,
+  },
+  {
+    tenor: '1Y',
+    name: '1-Year Treasury Note',
+    years: 1.0,
+    yield: 4.12,
+    changeBps: -2.5,
+    oneMonthAgo: 4.42,
+    oneYearAgo: 5.15,
+    dayLow: 4.10,
+    dayHigh: 4.16,
+    sparkline: [4.18, 4.15, 4.14, 4.13, 4.12],
+    coupon: 4.12,
+  },
+  {
+    tenor: '2Y',
+    name: '2-Year Benchmark Note',
+    years: 2.0,
+    yield: 3.78,
+    changeBps: 1.4,
+    oneMonthAgo: 3.92,
+    oneYearAgo: 4.90,
+    dayLow: 3.75,
+    dayHigh: 3.81,
+    sparkline: [3.74, 3.76, 3.75, 3.77, 3.78],
+    coupon: 3.75,
+  },
+  {
+    tenor: '3Y',
+    name: '3-Year Treasury Note',
+    years: 3.0,
+    yield: 3.72,
+    changeBps: 1.1,
+    oneMonthAgo: 3.82,
+    oneYearAgo: 4.65,
+    dayLow: 3.70,
+    dayHigh: 3.74,
+    sparkline: [3.69, 3.71, 3.70, 3.71, 3.72],
+    coupon: 3.65,
+  },
+  {
+    tenor: '5Y',
+    name: '5-Year Benchmark Note',
+    years: 5.0,
+    yield: 3.75,
+    changeBps: 2.2,
+    oneMonthAgo: 3.78,
+    oneYearAgo: 4.45,
+    dayLow: 3.72,
+    dayHigh: 3.77,
+    sparkline: [3.71, 3.73, 3.72, 3.74, 3.75],
+    coupon: 3.75,
+  },
+  {
+    tenor: '7Y',
+    name: '7-Year Treasury Note',
+    years: 7.0,
+    yield: 3.86,
+    changeBps: 2.8,
+    oneMonthAgo: 3.85,
+    oneYearAgo: 4.48,
+    dayLow: 3.83,
+    dayHigh: 3.88,
+    sparkline: [3.82, 3.84, 3.83, 3.85, 3.86],
+    coupon: 3.88,
+  },
+  {
+    tenor: '10Y',
+    name: '10-Year Benchmark Note',
+    years: 10.0,
+    yield: 3.98,
+    changeBps: 3.5,
+    oneMonthAgo: 3.90,
+    oneYearAgo: 4.52,
+    dayLow: 3.94,
+    dayHigh: 4.01,
+    sparkline: [3.92, 3.95, 3.94, 3.97, 3.98],
+    coupon: 4.00,
+  },
+  {
+    tenor: '20Y',
+    name: '20-Year Treasury Bond',
+    years: 20.0,
+    yield: 4.32,
+    changeBps: 2.6,
+    oneMonthAgo: 4.22,
+    oneYearAgo: 4.82,
+    dayLow: 4.29,
+    dayHigh: 4.35,
+    sparkline: [4.28, 4.30, 4.29, 4.31, 4.32],
+    coupon: 4.25,
+  },
+  {
+    tenor: '30Y',
+    name: '30-Year Benchmark Bond',
+    years: 30.0,
+    yield: 4.28,
+    changeBps: 2.9,
+    oneMonthAgo: 4.18,
+    oneYearAgo: 4.70,
+    dayLow: 4.25,
+    dayHigh: 4.31,
+    sparkline: [4.24, 4.26, 4.25, 4.27, 4.28],
+    coupon: 4.25,
+  },
+];
+
+// Econometric Recession Probability calculation based on NY Fed (Estrella & Mishkin)
+// Probit Model: P(Recession in 12M) = Phi(-0.5333 - 0.6330 * (10Y - 3M spread in %))
+export function calculateEstrellaMishkinRecessionProb(yield10y: number, yield3m: number): number {
+  const spread = yield10y - yield3m;
+  const z = -0.5333 - 0.6330 * spread;
+  // Logistic probit approximation
+  const prob = 1 / (1 + Math.exp(-1.6 * z));
+  return Math.max(1, Math.min(99, Math.round(prob * 1000) / 10));
+}
+
+// Preset historical & hypothetical rate curve scenarios for stress-testing
+export interface YieldCurveScenario {
+  id: string;
+  name: string;
+  tag: string;
+  description: string;
+  yieldOverrides: Record<string, number>;
+}
+
+export const YIELD_CURVE_SCENARIOS: YieldCurveScenario[] = [
+  {
+    id: 'current-live',
+    name: 'Current Live Market',
+    tag: 'LIVE',
+    description: 'Current US Treasury curve: 2Y/10Y uninverting (+20 bps), 3M/10Y still inverted (-64 bps).',
+    yieldOverrides: {
+      '1M': 4.75, '3M': 4.62, '6M': 4.45, '1Y': 4.12, '2Y': 3.78,
+      '3Y': 3.72, '5Y': 3.75, '7Y': 3.86, '10Y': 3.98, '20Y': 4.32, '30Y': 4.28,
+    },
+  },
+  {
+    id: 'deep-inversion-2023',
+    name: 'July 2023 Peak Inversion',
+    tag: 'INVERTED',
+    description: 'Deepest inversion since 1981: 2Y at 5.08%, 10Y at 3.96% (2Y/10Y = -112 bps, 3M/10Y = -154 bps).',
+    yieldOverrides: {
+      '1M': 5.48, '3M': 5.50, '6M': 5.42, '1Y': 5.35, '2Y': 5.08,
+      '3Y': 4.70, '5Y': 4.25, '7Y': 4.10, '10Y': 3.96, '20Y': 4.20, '30Y': 4.02,
+    },
+  },
+  {
+    id: 'bull-steepener',
+    name: 'Aggressive Fed Easing',
+    tag: 'BULL STEEP',
+    description: 'Rapid 150 bps rate cuts by FOMC: Short rates plunge, 2Y drops to 2.45%, 10Y steady at 3.85% (+140 bps spread).',
+    yieldOverrides: {
+      '1M': 3.00, '3M': 2.75, '6M': 2.60, '1Y': 2.50, '2Y': 2.45,
+      '3Y': 2.80, '5Y': 3.25, '7Y': 3.55, '10Y': 3.85, '20Y': 4.20, '30Y': 4.35,
+    },
+  },
+  {
+    id: 'bear-flattener',
+    name: 'Stagflation Hawkish Shock',
+    tag: 'BEAR FLAT',
+    description: 'Inflation re-accelerates: Fed hikes terminal rate to 6.0%, inverted front-end across all tenors.',
+    yieldOverrides: {
+      '1M': 5.85, '3M': 5.80, '6M': 5.65, '1Y': 5.50, '2Y': 5.40,
+      '3Y': 5.20, '5Y': 4.95, '7Y': 4.80, '10Y': 4.70, '20Y': 4.90, '30Y': 4.75,
+    },
+  },
+  {
+    id: 'historical-normal',
+    name: 'Historical Healthy Expansion',
+    tag: 'NORMAL',
+    description: 'Classic upward-sloping term premium: Short-end anchored at 2.50%, 10Y at 4.25%, 30Y at 4.70% (2Y/10Y = +125 bps).',
+    yieldOverrides: {
+      '1M': 2.25, '3M': 2.40, '6M': 2.65, '1Y': 2.85, '2Y': 3.00,
+      '3Y': 3.30, '5Y': 3.75, '7Y': 4.00, '10Y': 4.25, '20Y': 4.55, '30Y': 4.70,
+    },
+  },
+];
+
+import { CryptoAsset, CryptoMarketOverview, CryptoCategory } from '../types';
+
+export const INITIAL_CRYPTO_MARKET_OVERVIEW: CryptoMarketOverview = {
+  totalMarketCap: '$2.48T',
+  totalMarketCapChange24h: 2.74,
+  totalVolume24h: '$88.5B',
+  btcDominance: 57.6,
+  ethDominance: 14.1,
+  gasGwei: 11,
+  fearGreedIndex: 68,
+  fearGreedLabel: 'Greed',
+};
+
+export const INITIAL_CRYPTO_ASSETS: CryptoAsset[] = [
+  {
+    symbol: 'BTC',
+    name: 'Bitcoin',
+    category: 'L1',
+    price: 65840.00,
+    change1h: 0.45,
+    change24h: 2.85,
+    change7d: 6.40,
+    high24h: 66420.00,
+    low24h: 64180.00,
+    volume24h: '$34.2B',
+    marketCap: '$1.30T',
+    marketCapRank: 1,
+    sparkline: [63800, 64200, 64100, 64900, 65400, 65200, 65840],
+    alertEnabled: true,
+  },
+  {
+    symbol: 'ETH',
+    name: 'Ethereum',
+    category: 'L1',
+    price: 2645.20,
+    change1h: 0.32,
+    change24h: 3.40,
+    change7d: 4.80,
+    high24h: 2680.00,
+    low24h: 2550.00,
+    volume24h: '$18.4B',
+    marketCap: '$318.5B',
+    marketCapRank: 2,
+    sparkline: [2560, 2580, 2570, 2610, 2630, 2620, 2645.2],
+    alertEnabled: true,
+  },
+  {
+    symbol: 'SOL',
+    name: 'Solana',
+    category: 'L1',
+    price: 154.80,
+    change1h: 1.15,
+    change24h: 5.72,
+    change7d: 12.30,
+    high24h: 158.40,
+    low24h: 146.10,
+    volume24h: '$4.8B',
+    marketCap: '$72.4B',
+    marketCapRank: 5,
+    sparkline: [144, 147, 146, 150, 153, 151, 154.8],
+    alertEnabled: true,
+  },
+  {
+    symbol: 'BNB',
+    name: 'BNB Chain',
+    category: 'L1',
+    price: 592.50,
+    change1h: 0.12,
+    change24h: 1.45,
+    change7d: 3.10,
+    high24h: 598.00,
+    low24h: 582.00,
+    volume24h: '$1.2B',
+    marketCap: '$86.5B',
+    marketCapRank: 4,
+    sparkline: [580, 584, 583, 588, 591, 589, 592.5],
+  },
+  {
+    symbol: 'SUI',
+    name: 'Sui Network',
+    category: 'L1',
+    price: 2.14,
+    change1h: 2.40,
+    change24h: 8.90,
+    change7d: 28.50,
+    high24h: 2.22,
+    low24h: 1.94,
+    volume24h: '$980M',
+    marketCap: '$5.8B',
+    marketCapRank: 19,
+    sparkline: [1.82, 1.88, 1.95, 2.02, 2.10, 2.05, 2.14],
+  },
+  {
+    symbol: 'TAO',
+    name: 'Bittensor',
+    category: 'AI & Data',
+    price: 584.20,
+    change1h: 1.80,
+    change24h: 7.45,
+    change7d: 18.20,
+    high24h: 596.00,
+    low24h: 540.00,
+    volume24h: '$420M',
+    marketCap: '$4.3B',
+    marketCapRank: 24,
+    sparkline: [510, 530, 525, 550, 575, 565, 584.2],
+  },
+  {
+    symbol: 'RENDER',
+    name: 'Render Network',
+    category: 'AI & Data',
+    price: 6.42,
+    change1h: 0.95,
+    change24h: 4.10,
+    change7d: 9.60,
+    high24h: 6.65,
+    low24h: 6.12,
+    volume24h: '$290M',
+    marketCap: '$3.3B',
+    marketCapRank: 32,
+    sparkline: [5.9, 6.1, 6.0, 6.25, 6.38, 6.30, 6.42],
+  },
+  {
+    symbol: 'NEAR',
+    name: 'NEAR Protocol',
+    category: 'AI & Data',
+    price: 5.18,
+    change1h: 0.65,
+    change24h: 3.80,
+    change7d: 8.40,
+    high24h: 5.35,
+    low24h: 4.95,
+    volume24h: '$510M',
+    marketCap: '$6.2B',
+    marketCapRank: 17,
+    sparkline: [4.8, 4.95, 4.9, 5.05, 5.14, 5.10, 5.18],
+  },
+  {
+    symbol: 'LINK',
+    name: 'Chainlink',
+    category: 'Infrastructure',
+    price: 11.85,
+    change1h: 0.40,
+    change24h: 2.20,
+    change7d: 5.10,
+    high24h: 12.10,
+    low24h: 11.50,
+    volume24h: '$340M',
+    marketCap: '$7.2B',
+    marketCapRank: 14,
+    sparkline: [11.3, 11.45, 11.4, 11.65, 11.8, 11.75, 11.85],
+  },
+  {
+    symbol: 'AAVE',
+    name: 'Aave',
+    category: 'DeFi',
+    price: 162.40,
+    change1h: 1.20,
+    change24h: 6.30,
+    change7d: 14.50,
+    high24h: 168.00,
+    low24h: 151.00,
+    volume24h: '$290M',
+    marketCap: '$2.4B',
+    marketCapRank: 41,
+    sparkline: [145, 150, 148, 155, 160, 158, 162.4],
+  },
+  {
+    symbol: 'UNI',
+    name: 'Uniswap',
+    category: 'DeFi',
+    price: 7.82,
+    change1h: 0.85,
+    change24h: 4.65,
+    change7d: 7.90,
+    high24h: 8.05,
+    low24h: 7.42,
+    volume24h: '$210M',
+    marketCap: '$4.7B',
+    marketCapRank: 22,
+    sparkline: [7.2, 7.4, 7.35, 7.6, 7.75, 7.7, 7.82],
+  },
+  {
+    symbol: 'ARB',
+    name: 'Arbitrum',
+    category: 'L2',
+    price: 0.584,
+    change1h: 0.25,
+    change24h: 1.85,
+    change7d: 3.20,
+    high24h: 0.605,
+    low24h: 0.565,
+    volume24h: '$180M',
+    marketCap: '$2.1B',
+    marketCapRank: 48,
+    sparkline: [0.56, 0.57, 0.565, 0.575, 0.582, 0.58, 0.584],
+  },
+  {
+    symbol: 'OP',
+    name: 'Optimism',
+    category: 'L2',
+    price: 1.62,
+    change1h: 0.55,
+    change24h: 2.90,
+    change7d: 4.80,
+    high24h: 1.68,
+    low24h: 1.55,
+    volume24h: '$140M',
+    marketCap: '$2.0B',
+    marketCapRank: 50,
+    sparkline: [1.54, 1.57, 1.56, 1.59, 1.63, 1.61, 1.62],
+  },
+  {
+    symbol: 'DOGE',
+    name: 'Dogecoin',
+    category: 'Memes',
+    price: 0.1245,
+    change1h: 1.60,
+    change24h: 6.80,
+    change7d: 15.20,
+    high24h: 0.129,
+    low24h: 0.115,
+    volume24h: '$1.6B',
+    marketCap: '$18.1B',
+    marketCapRank: 8,
+    sparkline: [0.11, 0.114, 0.112, 0.118, 0.122, 0.12, 0.1245],
+  },
+  {
+    symbol: 'PEPE',
+    name: 'Pepe',
+    category: 'Memes',
+    price: 0.00001085,
+    change1h: 3.10,
+    change24h: 9.45,
+    change7d: 24.10,
+    high24h: 0.0000114,
+    low24h: 0.0000098,
+    volume24h: '$1.1B',
+    marketCap: '$4.5B',
+    marketCapRank: 23,
+    sparkline: [0.0000092, 0.0000096, 0.0000094, 0.0000101, 0.0000106, 0.0000104, 0.00001085],
+  },
+  {
+    symbol: 'WIF',
+    name: 'dogwifhat',
+    category: 'Memes',
+    price: 2.45,
+    change1h: 2.85,
+    change24h: 11.20,
+    change7d: 32.40,
+    high24h: 2.58,
+    low24h: 2.15,
+    volume24h: '$680M',
+    marketCap: '$2.4B',
+    marketCapRank: 42,
+    sparkline: [1.95, 2.05, 2.0, 2.2, 2.38, 2.32, 2.45],
+  },
+];
+
+export const CRYPTO_CATALOG_PRESETS: { symbol: string; name: string; category: CryptoCategory; price: number; rank: number }[] = [
+  { symbol: 'AVAX', name: 'Avalanche', category: 'L1', price: 28.40, rank: 12 },
+  { symbol: 'ADA', name: 'Cardano', category: 'L1', price: 0.385, rank: 11 },
+  { symbol: 'TON', name: 'Toncoin', category: 'L1', price: 5.65, rank: 9 },
+  { symbol: 'APT', name: 'Aptos', category: 'L1', price: 8.95, rank: 26 },
+  { symbol: 'INJ', name: 'Injective', category: 'DeFi', price: 21.80, rank: 45 },
+  { symbol: 'MKR', name: 'Maker', category: 'DeFi', price: 1540.00, rank: 54 },
+  { symbol: 'LDO', name: 'Lido DAO', category: 'DeFi', price: 1.28, rank: 68 },
+  { symbol: 'FET', name: 'Artificial Superintelligence', category: 'AI & Data', price: 1.48, rank: 30 },
+  { symbol: 'GRT', name: 'The Graph', category: 'AI & Data', price: 0.175, rank: 49 },
+  { symbol: 'BASE', name: 'Base Ecosystem Index', category: 'L2', price: 3.25, rank: 75 },
+  { symbol: 'SHIB', name: 'Shiba Inu', category: 'Memes', price: 0.0000185, rank: 13 },
+  { symbol: 'BONK', name: 'Bonk', category: 'Memes', price: 0.0000224, rank: 52 },
+];
