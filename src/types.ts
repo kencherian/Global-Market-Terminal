@@ -88,7 +88,40 @@ export type WidgetType =
   | 'market_sentiment'
   | 'market_news'
   | 'market_watchlist'
-  | 'yield_curve';
+  | 'yield_curve'
+  | 'crypto_watchlist';
+
+export type CryptoCategory = 'L1' | 'DeFi' | 'AI & Data' | 'L2' | 'Memes' | 'Infrastructure';
+
+export interface CryptoAsset {
+  symbol: string;         // 'BTC', 'ETH', 'SOL', etc.
+  name: string;           // 'Bitcoin', 'Ethereum', etc.
+  category: CryptoCategory;
+  price: number;
+  change1h: number;       // % move in last hour
+  change24h: number;      // % move in last 24 hours
+  change7d: number;       // % move in last 7 days
+  high24h: number;
+  low24h: number;
+  volume24h: string;      // e.g. '$34.2B'
+  marketCap: string;      // e.g. '$1.32T'
+  marketCapRank: number;  // 1, 2, 3...
+  sparkline: number[];
+  alertEnabled?: boolean;
+  notes?: string;
+  lastUpdated?: string;
+}
+
+export interface CryptoMarketOverview {
+  totalMarketCap: string;
+  totalMarketCapChange24h: number;
+  totalVolume24h: string;
+  btcDominance: number;
+  ethDominance: number;
+  gasGwei: number;
+  fearGreedIndex: number;
+  fearGreedLabel: string;
+}
 
 export interface TreasuryYield {
   tenor: string;        // '1M', '3M', '6M', '1Y', '2Y', '3Y', '5Y', '7Y', '10Y', '20Y', '30Y'

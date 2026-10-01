@@ -12,7 +12,9 @@ import {
   WatchlistAsset,
   PushTerminalNotification,
   TreasuryYield,
-  TerminalTheme
+  TerminalTheme,
+  CryptoAsset,
+  CryptoMarketOverview
 } from './types';
 import { BellRing, X, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { 
@@ -22,6 +24,8 @@ import {
   INITIAL_METALS, 
   INITIAL_WATCHLIST_ASSETS,
   INITIAL_TREASURY_YIELDS,
+  INITIAL_CRYPTO_ASSETS,
+  INITIAL_CRYPTO_MARKET_OVERVIEW,
   MARKET_CATALOG_ASSETS,
   calculateWorldSessions 
 } from './services/dataAdapter';
@@ -40,6 +44,7 @@ import { MarketSentimentWidget } from './components/widgets/MarketSentimentWidge
 import { MarketNewsWidget } from './components/widgets/MarketNewsWidget';
 import { MarketWatchlistWidget } from './components/widgets/MarketWatchlistWidget';
 import { YieldCurveWidget } from './components/widgets/YieldCurveWidget';
+import { CryptoWatchlistWidget } from './components/widgets/CryptoWatchlistWidget';
 
 const STORAGE_KEY = 'mkt_terminal_layout_v3';
 
@@ -69,6 +74,16 @@ const DEFAULT_WIDGETS: WidgetConfig[] = [
     type: 'market_news',
     title: 'MARKET NEWS FEED // REAL-TIME WIRES',
     category: 'REAL-TIME WIRES',
+    colSpan: 2,
+    isVisible: true,
+    isMinimized: false,
+    isMaximized: false,
+  },
+  {
+    id: 'w-crypto-watchlist',
+    type: 'crypto_watchlist',
+    title: 'CRYPTOCURRENCY WATCHLIST // DIGITAL ASSETS & DOMINANCE',
+    category: 'CRYPTO ASSETS',
     colSpan: 2,
     isVisible: true,
     isMinimized: false,
@@ -246,6 +261,30 @@ export default function App() {
               parsed = [...parsed, yieldCurveWidget];
             }
           }
+
+          const hasCryptoWatchlist = parsed.some((w: WidgetConfig) => w.type === 'crypto_watchlist');
+          if (!hasCryptoWatchlist) {
+            const cryptoWidget: WidgetConfig = {
+              id: 'w-crypto-watchlist',
+              type: 'crypto_watchlist',
+              title: 'CRYPTOCURRENCY WATCHLIST // DIGITAL ASSETS & DOMINANCE',
+              category: 'CRYPTO ASSETS',
+              colSpan: 2,
+              isVisible: true,
+              isMinimized: false,
+              isMaximized: false,
+            };
+            const newsIdx = parsed.findIndex((w: WidgetConfig) => w.type === 'market_news');
+            if (newsIdx !== -1) {
+              parsed = [
+                ...parsed.slice(0, newsIdx + 1),
+                cryptoWidget,
+                ...parsed.slice(newsIdx + 1),
+              ];
+            } else {
+              parsed = [parsed[0], cryptoWidget, ...parsed.slice(1)];
+            }
+          }
           return parsed;
         }
       }
@@ -363,6 +402,60 @@ export default function App() {
 
   const handleToggleWatchlistAlert = useCallback((symbol: string) => {
     setWatchlistData((prev) =>
+      prev.map((a) =>
+        a.symbol.toUpperCase() === symbol.toUpperCase()
+          ? { ...a, alertEnabled: !a.alertEnabled }
+          : a
+      )
+    );
+  }, []);
+
+  // Cryptocurrency Watchlist Dataset with persistence
+  const [cryptoData, setCryptoData] = useState<CryptoAsset[]>(() => {
+    try {
+      const saved = localStorage.getItem('mkt_user_crypto_watchlist_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to parse crypto watchlist from localStorage', e);
+    }
+    return INITIAL_CRYPTO_ASSETS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('mkt_user_crypto_watchlist_v1', JSON.stringify(cryptoData));
+    } catch (e) {
+      console.warn('Failed to save crypto watchlist to localStorage', e);
+    }
+  }, [cryptoData]);
+
+  const [cryptoMarketOverview, setCryptoMarketOverview] = useState<CryptoMarketOverview>(INITIAL_CRYPTO_MARKET_OVERVIEW);
+  const [flashCryptoSymbols, setFlashCryptoSymbols] = useState<Set<string>>(new Set());
+
+  const handleAddCryptoAsset = useCallback((asset: CryptoAsset) => {
+    setCryptoData((prev) => {
+      if (prev.some((a) => a.symbol.toUpperCase() === asset.symbol.toUpperCase())) {
+        return prev;
+      }
+      return [asset, ...prev];
+    });
+  }, []);
+
+  const handleRemoveCryptoAsset = useCallback((symbol: string) => {
+    setCryptoData((prev) => prev.filter((a) => a.symbol.toUpperCase() !== symbol.toUpperCase()));
+  }, []);
+
+  const handleResetCryptoAssets = useCallback(() => {
+    setCryptoData(INITIAL_CRYPTO_ASSETS);
+  }, []);
+
+  const handleToggleCryptoAlert = useCallback((symbol: string) => {
+    setCryptoData((prev) =>
       prev.map((a) =>
         a.symbol.toUpperCase() === symbol.toUpperCase()
           ? { ...a, alertEnabled: !a.alertEnabled }
@@ -822,7 +915,65 @@ export default function App() {
         }
       }
 
-      // 7. Random Orderbook stream event
+      // 7. Cryptocurrency Micro-Tick Update
+      if (randEvent < 0.48) {
+        let tickedCrypto = '';
+        setCryptoData((prev) => {
+          if (!prev.length) return prev;
+          const randomIdx = Math.floor(Math.random() * prev.length);
+          const target = prev[randomIdx];
+          if (!target) return prev;
+          tickedCrypto = target.symbol;
+
+          // Crypto volatility: -0.7% to +0.7% with occasional 2-3% move
+          const isSpike = Math.random() < 0.12;
+          const deltaPct = isSpike 
+            ? (Math.random() > 0.48 ? 1 : -1) * (2.1 + Math.random() * 1.8)
+            : (Math.random() - 0.49) * 0.7;
+
+          let newPrice = target.price * (1 + deltaPct / 100);
+          if (newPrice > 100) newPrice = Math.round(newPrice * 100) / 100;
+          else if (newPrice > 1) newPrice = Math.round(newPrice * 1000) / 1000;
+          else newPrice = Math.round(newPrice * 100000000) / 100000000;
+
+          const new1h = Math.round((target.change1h + deltaPct * 0.6) * 100) / 100;
+          const new24h = Math.round((target.change24h + deltaPct) * 100) / 100;
+
+          const newSparkline = [...(target.sparkline || [target.price])];
+          newSparkline.push(newPrice);
+          if (newSparkline.length > 8) newSparkline.shift();
+
+          const next = [...prev];
+          next[randomIdx] = {
+            ...target,
+            price: newPrice,
+            change1h: new1h,
+            change24h: new24h,
+            high24h: Math.max(target.high24h, newPrice),
+            low24h: Math.min(target.low24h, newPrice),
+            sparkline: newSparkline,
+            lastUpdated: new Date().toLocaleTimeString(),
+          };
+          return next;
+        });
+
+        if (tickedCrypto) {
+          setFlashCryptoSymbols((prev) => {
+            const n = new Set(prev);
+            n.add(tickedCrypto);
+            return n;
+          });
+          setTimeout(() => {
+            setFlashCryptoSymbols((prev) => {
+              const n = new Set(prev);
+              n.delete(tickedCrypto);
+              return n;
+            });
+          }, 500);
+        }
+      }
+
+      // 8. Random Orderbook stream event
       if (randEvent < 0.25) {
         const now = new Date();
         const timeStr = `${now.toISOString().substring(11, 19)}.${Math.floor(Math.random() * 900 + 100)}`;
@@ -951,6 +1102,21 @@ export default function App() {
           <MarketNewsWidget
             onBroadcastAlert={handleBroadcastAlert}
             audioEnabled={audioEnabled}
+          />
+        );
+      case 'crypto_watchlist':
+        return (
+          <CryptoWatchlistWidget
+            assets={cryptoData}
+            marketOverview={cryptoMarketOverview}
+            flashSymbols={flashCryptoSymbols}
+            onAddAsset={handleAddCryptoAsset}
+            onRemoveAsset={handleRemoveCryptoAsset}
+            onResetAssets={handleResetCryptoAssets}
+            onToggleAlert={handleToggleCryptoAlert}
+            onBroadcastAlert={handleBroadcastAlert}
+            audioEnabled={audioEnabled}
+            theme={theme}
           />
         );
       case 'market_watchlist':
