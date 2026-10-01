@@ -45,6 +45,7 @@ import { MarketNewsWidget } from './components/widgets/MarketNewsWidget';
 import { MarketWatchlistWidget } from './components/widgets/MarketWatchlistWidget';
 import { YieldCurveWidget } from './components/widgets/YieldCurveWidget';
 import { CryptoWatchlistWidget } from './components/widgets/CryptoWatchlistWidget';
+import { CryptoHeatmapWidget } from './components/widgets/CryptoHeatmapWidget';
 
 const STORAGE_KEY = 'mkt_terminal_layout_v3';
 
@@ -74,6 +75,16 @@ const DEFAULT_WIDGETS: WidgetConfig[] = [
     type: 'market_news',
     title: 'MARKET NEWS FEED // REAL-TIME WIRES',
     category: 'REAL-TIME WIRES',
+    colSpan: 2,
+    isVisible: true,
+    isMinimized: false,
+    isMaximized: false,
+  },
+  {
+    id: 'w-crypto-heatmap',
+    type: 'crypto_heatmap',
+    title: 'CRYPTOCURRENCY MARKET HEATMAP // DOMINANCE & SECTOR BLOCKS',
+    category: 'CRYPTO HEATMAP',
     colSpan: 2,
     isVisible: true,
     isMinimized: false,
@@ -283,6 +294,30 @@ export default function App() {
               ];
             } else {
               parsed = [parsed[0], cryptoWidget, ...parsed.slice(1)];
+            }
+          }
+
+          const hasCryptoHeatmap = parsed.some((w: WidgetConfig) => w.type === 'crypto_heatmap');
+          if (!hasCryptoHeatmap) {
+            const cryptoHeatmapWidget: WidgetConfig = {
+              id: 'w-crypto-heatmap',
+              type: 'crypto_heatmap',
+              title: 'CRYPTOCURRENCY MARKET HEATMAP // DOMINANCE & SECTOR BLOCKS',
+              category: 'CRYPTO HEATMAP',
+              colSpan: 2,
+              isVisible: true,
+              isMinimized: false,
+              isMaximized: false,
+            };
+            const cryptoWatchlistIdx = parsed.findIndex((w: WidgetConfig) => w.type === 'crypto_watchlist');
+            if (cryptoWatchlistIdx !== -1) {
+              parsed = [
+                ...parsed.slice(0, cryptoWatchlistIdx),
+                cryptoHeatmapWidget,
+                ...parsed.slice(cryptoWatchlistIdx),
+              ];
+            } else {
+              parsed = [parsed[0], cryptoHeatmapWidget, ...parsed.slice(1)];
             }
           }
           return parsed;
@@ -1102,6 +1137,15 @@ export default function App() {
           <MarketNewsWidget
             onBroadcastAlert={handleBroadcastAlert}
             audioEnabled={audioEnabled}
+          />
+        );
+      case 'crypto_heatmap':
+        return (
+          <CryptoHeatmapWidget
+            assets={cryptoData}
+            flashSymbols={flashCryptoSymbols}
+            onBroadcastAlert={handleBroadcastAlert}
+            theme={theme}
           />
         );
       case 'crypto_watchlist':

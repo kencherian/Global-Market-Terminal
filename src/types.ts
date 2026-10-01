@@ -89,7 +89,8 @@ export type WidgetType =
   | 'market_news'
   | 'market_watchlist'
   | 'yield_curve'
-  | 'crypto_watchlist';
+  | 'crypto_watchlist'
+  | 'crypto_heatmap';
 
 export type CryptoCategory = 'L1' | 'DeFi' | 'AI & Data' | 'L2' | 'Memes' | 'Infrastructure';
 
